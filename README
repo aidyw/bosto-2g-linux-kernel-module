@@ -1,0 +1,46 @@
+Bosto tablet driver 0.1a
+========================
+
+Driver for Linux kernels which is believed to support complete functionality of the tablet:
+pen coordinates, touch/float/click detection, pressure, x and y tilt, pen
+button. 
+
+Based on the driver originally developed directly at Hanwang.com.cn to support the Artmaster series of Hanvon Tablets.
+
+
+Supported hardware
+==================
+
+Bosto 22HD
+
+AM - Artmaster I, RL - Rollick, GP - GraphicPal, NXS - Nilox
+
+
+Installation
+============
+
+Type 'make' to compile the module. New file bosto_2g.ko will be produced in
+current directory. Load the module with root permissions
+
+insmod ./bosto_2g.ko
+
+If everything goes right the tablet should start working immediately.
+However you may find that the generic usb_hid module will bind to the device by default.
+To unbind the generic usb_hid driver :
+
+echo -n "USB_BUS_ID" > /sys/bus/usb/drivers/usbhid/unbind				e.g echo -n "2-3:1.0" > ..../unbind
+
+Then attach the driver to the bosto_2g module.
+
+echo -n "USB_ID" > /sys/bus/usb/drivers/bosto_2g/bind
+
+Work in progress.
+
+
+Diagnostics
+===========
+
+After insmod, check with dmesg, if the module was loaded properly.  
+"Bosto 2nd Generation USB Driver module being initialised." should appear in the listing.
+
+lsmod should also contain bosto_2g in its listing: lsmod | grep bosto_2g
