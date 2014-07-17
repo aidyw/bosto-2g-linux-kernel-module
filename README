@@ -40,6 +40,9 @@ Work in progress.
 Diagnostics
 ===========
 
+The current code outputs constantly to /var/log/kern.log. dmesg and you can see a packet decode as produced by the parse_packet function. Its a bit glitchy and I think a careful look at how and what gets reacted to might improve the effects of tracking jumps. i.e When the pen states PEN OUT, this seems inappropriate when the pen is touching the screen. Can we supress this? 
+
+
 After insmod, check with dmesg, if the module was loaded properly.  
 "Bosto 2nd Generation USB Driver module being initialised." should appear in the listing.
 
