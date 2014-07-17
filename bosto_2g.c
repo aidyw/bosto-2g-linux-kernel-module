@@ -37,11 +37,11 @@ MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE(DRIVER_LICENSE);
 
-#define USB_VENDOR_ID_HANWANG		0x0b57
+#define USB_VENDOR_ID_HANWANG			0x0b57
 #define USB_PRODUCT_BOSTO22         	0x9016
-#define HANWANG_TABLET_INT_CLASS	0x0003
+#define HANWANG_TABLET_INT_CLASS		0x0003
 #define HANWANG_TABLET_INT_SUB_CLASS	0x0001
-#define HANWANG_TABLET_INT_PROTOCOL	0x0002
+#define HANWANG_TABLET_INT_PROTOCOL		0x0002
 
 #define ART_MASTER_PKGLEN_MAX	10
 
@@ -52,14 +52,16 @@ MODULE_LICENSE(DRIVER_LICENSE);
 #define ERASER_DEVICE_ID	0x0A
 #define PAD_DEVICE_ID		0x0F
 
-/* match vendor and interface info
-#define HANWANG_TABLET_DEVICE(vend, cl, sc, pr) \
+/* match vendor and interface info */
+/* #define HANWANG_TABLET_DEVICE(vend, prod, cl, sc, pr) \
 	.match_flags = USB_DEVICE_ID_MATCH_VENDOR \
 		| USB_DEVICE_ID_MATCH_INT_INFO, \
 	.idVendor = (vend), \
+	.idProduct = (prod), \
 	.bInterfaceClass = (cl), \
 	.bInterfaceSubClass = (sc), \
-	.bInterfaceProtocol = (pr) */
+	.bInterfaceProtocol = (pr)
+*/
 
 /* #define HANWANG_TABLET_DEVICE(vend, prod, cl, sc, pr) \
     .match_flags = USB_DEVICE_ID_MATCH_INT_INFO \
@@ -68,11 +70,12 @@ MODULE_LICENSE(DRIVER_LICENSE);
         .idProduct = (prod), \
         .bInterfaceClass = (cl), \
         .bInterfaceSubClass = (sc), \
-        .bInterfaceProtocol = (pr) */
+        .bInterfaceProtocol = (pr)
+*/
 
 #define HANWANG_TABLET_DEVICE(vend, prod, cl, sc, pr) \
-        .match_flags = USB_DEVICE_ID_MATCH_DEVICE \
-		| USB_DEVICE_ID_MATCH_PRODUCT, \
+    .match_flags = USB_DEVICE_ID_MATCH_INT_INFO \
+            | USB_DEVICE_ID_MATCH_DEVICE, \
         .idVendor = (vend), \
         .idProduct = (prod), \
         .bInterfaceClass = (cl), \
@@ -81,7 +84,7 @@ MODULE_LICENSE(DRIVER_LICENSE);
 
 enum hanwang_tablet_type {
 	HANWANG_BOSTO_2GEN,
-/*	HANWANG_ART_MASTER_III, */
+	HANWANG_ART_MASTER_III, 
 	HANWANG_ART_MASTER_HD,
 };
 
@@ -111,17 +114,15 @@ struct hanwang_features {
 };
 
 static const struct hanwang_features features_array[] = {
-	{ 0x9016, "Bosto Kingtee 22HD ", HANWANG_BOSTO_2GEN,
-	  ART_MASTER_PKGLEN_MAX, 0x2802, 0x1d00, 0x3f, 0x7f, 2048 }
-};
-/*
-	{ 0x8529, "Hanwang Art Master III 0604", HANWANG_ART_MASTER_III,
+	{ 0x9016, "Bosto Kingtee 22HD", HANWANG_BOSTO_2GEN,
+	  ART_MASTER_PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
+	{ 0x9017, "Bosto Kingtee 14WA", HANWANG_ART_MASTER_III,
 	  ART_MASTER_PKGLEN_MAX, 0x3d84, 0x2672, 0x3f, 0x7f, 2048 },
 	{ 0x852a, "Hanwang Art Master III 1308", HANWANG_ART_MASTER_III,
 	  ART_MASTER_PKGLEN_MAX, 0x7f00, 0x4f60, 0x3f, 0x7f, 2048 },
 	{ 0x8401, "Hanwang Art Master HD 5012", HANWANG_ART_MASTER_HD,
 	  ART_MASTER_PKGLEN_MAX, 0x678e, 0x4150, 0x3f, 0x7f, 1024 },
-}; */
+};
 
 static const int hw_eventtypes[] = {
 	EV_KEY, EV_ABS, EV_MSC,
@@ -148,32 +149,45 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	struct input_dev *input_dev = hanwang->dev;
 	struct usb_device *dev = hanwang->usbdev;
 	enum hanwang_tablet_type type = hanwang->features->type;
-	int i;
-	u16 x, y, p;
-
+	u16 x, y, p; 
+	
 	switch (data[0]) {
 	case 0x02:	/* data packet */
 		switch (data[1]) {
 		case 0x80:	/* tool prox out */
+			printk (KERN_DEBUG "Pen OUT [1] %x\n", data[1]);
 			hanwang->current_id = 0;
 			input_report_key(input_dev, hanwang->current_tool, 0);
 			break;
 
 		case 0xc2:	/* first time tool prox in */
+			printk (KERN_DEBUG "Pen IN [1] %x ", data[1]);
 			switch (data[3] & 0xf0) {
-			case 0x20:	/* art_master III */
-			case 0x30:	/* art_master_HD */
+			case 0x20:												// Bosto 22HD
+				hanwang->current_id = STYLUS_DEVICE_ID;
+				hanwang->current_tool = BTN_TOOL_PEN;
+			case 0x30:												// art_master_HD
 				hanwang->current_id = STYLUS_DEVICE_ID;
 				hanwang->current_tool = BTN_TOOL_PEN;
 				input_report_key(input_dev, BTN_TOOL_PEN, 1);
 				break;
-			case 0xa0:	/* art_master III */
-			case 0xb0:	/* art_master_HD */
+			case 0xa0:												// art_master III
 				hanwang->current_id = ERASER_DEVICE_ID;
 				hanwang->current_tool = BTN_TOOL_RUBBER;
 				input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
 				break;
+
+/*			case 0xb0:	// art_master_HD
+				printk (KERN_DEBUG " [3]: %x\n", data[3]);
+				hanwang->current_id = ERASER_DEVICE_ID;
+				hanwang->current_tool = BTN_TOOL_RUBBER;
+				input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
+				printk (KERN_DEBUG "Report Key: Tool: %x\n", hanwang->current_tool);
+				break;	
+*/
+				
 			default:
+				printk (KERN_DEBUG " [3]: %x\n", data[3]);
 				hanwang->current_id = 0;
 				dev_dbg(&dev->dev,
 					"unknown tablet tool %02x ", data[0]);
@@ -181,21 +195,26 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			}
 			break;
 
+		case 0xe0:		// Pen contact
+		case 0xe1:
+			printk (KERN_DEBUG "Pen contact" );
+		
 		default:	/* tool data packet */
-			x = (data[2] << 8) | data[3];
-			y = (data[4] << 8) | data[5];
+			
+			x = (data[2] << 8) | data[3];		// Set x ABS
+			y = (data[4] << 8) | data[5];		// Set y ABS
 
 			switch (type) {
-			case HANWANG_BOSTO_2GEN: /* was HANWANG_ART_MASTER_III */
+			case HANWANG_BOSTO_2GEN: 
 				p = (data[6] << 3) |
-				    ((data[7] & 0xc0) >> 5) |
-				    (data[1] & 0x01);
+				((data[7] & 0xc0) >> 5) |
+				(data[1] & 0x01);				// Set 2048 Level pressure sensitivity
 				break;
-
-			case HANWANG_ART_MASTER_HD:
-				p = (data[7] >> 6) | (data[6] << 2);
+/*
+			case HANWANG_ART_MASTER_HD: 
+				p = (data[7] >> 6) | (data[6] << 2); // 1024 Level pressure sensitivity
 				break;
-
+*/
 			default:
 				p = 0;
 				break;
@@ -205,10 +224,11 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 						le16_to_cpup((__le16 *)&x));
 			input_report_abs(input_dev, ABS_Y,
 						le16_to_cpup((__le16 *)&y));
-			input_report_abs(input_dev, ABS_PRESSURE,
-						le16_to_cpup((__le16 *)&p));
-			input_report_abs(input_dev, ABS_TILT_X, data[7] & 0x3f);
-			input_report_abs(input_dev, ABS_TILT_Y, data[8] & 0x7f);
+			input_report_abs(input_dev, ABS_PRESSURE, le16_to_cpup((__le16 *)&p));
+			
+			/* input_report_abs(input_dev, ABS_TILT_X, data[7] & 0x3f);		// Does not seem to exist for Bosto
+			 input_report_abs(input_dev, ABS_TILT_Y, data[8] & 0x7f); */
+			
 			input_report_key(input_dev, BTN_STYLUS, data[1] & 0x02);
 			input_report_key(input_dev, BTN_STYLUS2, data[1] & 0x04);
 			break;
@@ -218,12 +238,15 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 				hanwang->features->pid);
 		break;
 
+/*
 	case 0x0c:
-		/* roll wheel */
+		// roll wheel
+		printk (KERN_DEBUG "Do we ever get here?/n" );
+		
 		hanwang->current_id = PAD_DEVICE_ID;
 
 		switch (type) {
-		case HANWANG_BOSTO_2GEN:/* was HANWANG_ART_MASTER_III */
+		case HANWANG_ART_MASTER_III:					// was HANWANG_ART_MASTER_III
 			input_report_key(input_dev, BTN_TOOL_FINGER, data[1] ||
 							data[2] || data[3]);
 			input_report_abs(input_dev, ABS_WHEEL, data[1]);
@@ -254,12 +277,21 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 		input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 		input_event(input_dev, EV_MSC, MSC_SERIAL, 0xffffffff);
 		break;
+*/
 
 	default:
 		dev_dbg(&dev->dev, "error packet  %02x ", data[0]);
 		break;
 	}
-
+	printk (KERN_DEBUG "Report ABS_MISC: %x\n", hanwang->current_id);
+	printk (KERN_DEBUG "Report pid: %x\n", hanwang->features->pid);
+	printk (KERN_DEBUG "Report Current Tool: %x\n", hanwang->current_tool);
+	printk (KERN_DEBUG "Report BTN_STYLUS: %x\n", data[1] & 0x02);
+	printk (KERN_DEBUG "Report ABS_X %x\n", le16_to_cpup((__le16 *)&x));
+	printk (KERN_DEBUG "Report ABS_Y %x\n", le16_to_cpup((__le16 *)&y));
+	printk (KERN_DEBUG "Report ABS_PRESSURE %x\n", le16_to_cpup((__le16 *)&p));
+	printk (KERN_DEBUG "Bosto packet:  [B1:-:B8] %x:%x:%x:%x:%x:%x:%x\n", data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+	
 	input_sync(input_dev);
 }
 
@@ -337,7 +369,7 @@ static int hanwang_probe(struct usb_interface *intf, const struct usb_device_id 
 	int error;
 	int i;
 
-	printk (KERN_INFO "I'm in bosto_probe.\n");
+	printk (KERN_INFO "Bosto_Probe checking Tablet.\n");
 	hanwang = kzalloc(sizeof(struct hanwang), GFP_KERNEL);
 	input_dev = input_allocate_device();
 	if (!hanwang || !input_dev) {
@@ -441,17 +473,12 @@ static void hanwang_disconnect(struct usb_interface *intf)
 	usb_set_intfdata(intf, NULL);
 }
 
-/* static const struct usb_device_id hanwang_ids[] = {
-	{ HANWANG_TABLET_DEVICE(USB_VENDOR_ID_HANWANG, USB_PRODUCT_BOSTO22, HANWANG_TABLET_INT_CLASS,
-		HANWANG_TABLET_INT_SUB_CLASS, HANWANG_TABLET_INT_PROTOCOL) },
-	{}
-}; */
-
 static const struct usb_device_id hanwang_ids[] = {
-	{ HANWANG_TABLET_DEVICE(USB_VENDOR_ID_HANWANG, USB_PRODUCT_BOSTO22, HANWANG_TABLET_INT_CLASS,
-		HANWANG_TABLET_INT_SUB_CLASS, HANWANG_TABLET_INT_PROTOCOL) },
+	{ HANWANG_TABLET_DEVICE(USB_VENDOR_ID_HANWANG, USB_PRODUCT_BOSTO22, HANWANG_TABLET_INT_CLASS, HANWANG_TABLET_INT_SUB_CLASS, HANWANG_TABLET_INT_PROTOCOL) },
 	{}
 };
+
+
 
 MODULE_DEVICE_TABLE(usb, hanwang_ids);
 
