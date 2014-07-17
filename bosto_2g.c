@@ -196,7 +196,9 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			break;
 
 		case 0xe0:		// Pen contact
-		case 0xe1:
+		case 0xe1:		
+		case 0xe2:		// All a little strange; these 4 bytes are always seens whenever the pen is in contact with the tablet. 'e0 + e1', without the stylus button pressed and 'e2 + e3' with the stylus button pressed. Either of the buttons.
+		case 0xe3:		// in either case the byte value jitters between a pair of either of the two states dependent on the button press.
 			printk (KERN_DEBUG "Pen contact" );
 		
 		default:	/* tool data packet */
