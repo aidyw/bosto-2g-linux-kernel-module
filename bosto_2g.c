@@ -163,15 +163,17 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 		case 0xc2:	/* first time tool prox in */
 			printk (KERN_DEBUG "Pen IN [1] %x ", data[1]);
 			switch (data[3] & 0xf0) {
-			case 0x20:												// Bosto 22HD
-				hanwang->current_id = STYLUS_DEVICE_ID;
+			case 0x20:												// Pen Tip in prox. Bosto 22HD
+				hanwang->current_id = CURSOR_DEVICE_ID;
 				hanwang->current_tool = BTN_TOOL_PEN;
-			case 0x30:												// art_master_HD
+				input_report_key(input_dev, BTN_TOOL_PEN, 1);
+/*			case 0x30:												// art_master_HD
 				hanwang->current_id = STYLUS_DEVICE_ID;
 				hanwang->current_tool = BTN_TOOL_PEN;
 				input_report_key(input_dev, BTN_TOOL_PEN, 1);
 				break;
-			case 0xa0:												// art_master III
+*/
+			case 0xa0:												// Pen Eraser in prox. Bosto 2HD
 				hanwang->current_id = ERASER_DEVICE_ID;
 				hanwang->current_tool = BTN_TOOL_RUBBER;
 				input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
@@ -194,12 +196,52 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 				break;
 			}
 			break;
+			
+		case 0xa0 ... 0xa3:			// Pen trackable but not in contact with screen.
+				printk (KERN_DEBUG "Pen floating\n" );
+				hanwang->current_id = CURSOR_DEVICE_ID;
+					x = (data[2] << 8) | data[3];		// Set x ABS
+					y = (data[4] << 8) | data[5];		// Set y ABS
+	
+					switch (type) {
+						case HANWANG_BOSTO_2GEN: 
+							p = (data[6] << 3) |
+							((data[7] & 0xc0) >> 5) |
+							(data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifys the pressure sensitivity 
+							break;
+						case HANWANG_ART_MASTER_HD: 
+							p = (data[7] >> 6) | (data[6] << 2); // 1024 Level pressure sensitivity
+							break;
+						default:
+							p = 0;
+							break;
+					}
+			break;
+		
+		case 0xe0 ... 0xe3:		// Pen contact
+								// All a little strange; these 4 bytes are always seens whenever the pen is in contact with the tablet. 'e0 + e1', without the stylus button pressed and 'e2 + e3' with the stylus button pressed. Either of the buttons.
+								// in either case the byte value jitters between a pair of either of the two states dependent on the button press.
+			printk (KERN_DEBUG "Pen contact\n" );
+			hanwang->current_id = STYLUS_DEVICE_ID;
+				x = (data[2] << 8) | data[3];		// Set x ABS
+				y = (data[4] << 8) | data[5];		// Set y ABS
 
-		case 0xe0:		// Pen contact
-		case 0xe1:		
-		case 0xe2:		// All a little strange; these 4 bytes are always seens whenever the pen is in contact with the tablet. 'e0 + e1', without the stylus button pressed and 'e2 + e3' with the stylus button pressed. Either of the buttons.
-		case 0xe3:		// in either case the byte value jitters between a pair of either of the two states dependent on the button press.
-			printk (KERN_DEBUG "Pen contact" );
+				switch (type) {
+					case HANWANG_BOSTO_2GEN: 
+						p = (data[6] << 3) |
+						((data[7] & 0xc0) >> 5) |
+						(data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifys the pressure sensitivity 
+						break;
+					case HANWANG_ART_MASTER_HD: 
+						p = (data[7] >> 6) | (data[6] << 2); // 1024 Level pressure sensitivity
+						break;
+					default:
+						p = 0;
+						break;
+				}
+		break;
+			
+
 		
 		default:	/* tool data packet */
 			
@@ -210,7 +252,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			case HANWANG_BOSTO_2GEN: 
 				p = (data[6] << 3) |
 				((data[7] & 0xc0) >> 5) |
-				(data[1] & 0x01);				// Set 2048 Level pressure sensitivity
+				(data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifys the pressure sensitivity 
 				break;
 /*
 			case HANWANG_ART_MASTER_HD: 
@@ -285,18 +327,38 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 		dev_dbg(&dev->dev, "error packet  %02x ", data[0]);
 		break;
 	}
-	printk (KERN_DEBUG "Report ABS_MISC: %x\n", hanwang->current_id);
 	printk (KERN_DEBUG "Report pid: %x\n", hanwang->features->pid);
 	printk (KERN_DEBUG "Report Current Tool: %x\n", hanwang->current_tool);
+	printk (KERN_DEBUG "Report Current Device ID: %x\n", hanwang->current_id);
 	printk (KERN_DEBUG "Report BTN_STYLUS: %x\n", data[1] & 0x02);
 	printk (KERN_DEBUG "Report ABS_X %x\n", le16_to_cpup((__le16 *)&x));
 	printk (KERN_DEBUG "Report ABS_Y %x\n", le16_to_cpup((__le16 *)&y));
-	printk (KERN_DEBUG "Report ABS_PRESSURE %x\n", le16_to_cpup((__le16 *)&p));
-	printk (KERN_DEBUG "Bosto packet:  [B1:-:B8] %x:%x:%x:%x:%x:%x:%x\n", data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+	printk (KERN_DEBUG "Report ABS_PRESSURE %d\n", le16_to_cpup((__le16 *)&p));
+	printk (KERN_DEBUG "Bosto packet:  [B1:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
 	
 	input_sync(input_dev);
 }
-
+/*
+static void get_pos_press ()
+{
+	x = (data[2] << 8) | data[3];		// Set x ABS
+				y = (data[4] << 8) | data[5];		// Set y ABS
+	
+				switch (type) {
+				case HANWANG_BOSTO_2GEN: 
+					p = (data[6] << 3) |
+					((data[7] & 0xc0) >> 5) |
+					(data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifys the pressure sensitivity 
+					break;
+				case HANWANG_ART_MASTER_HD: 
+					p = (data[7] >> 6) | (data[6] << 2); // 1024 Level pressure sensitivity
+					break;
+				default:
+					p = 0;
+					break;
+				}
+}
+*/
 static void hanwang_irq(struct urb *urb)
 {
 	struct hanwang *hanwang = urb->context;
