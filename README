@@ -51,7 +51,10 @@ lsmod should also contain bosto_2g in its listing: lsmod | grep bosto_2g
 Debug ouput now pattern matched to entries in the /sys/kernel/debug/dynamic_debug/control file
 For example to see each time the driver detects a PEN_IN event, echo the following:
 
-echo -n 'file ./<path to source>/bosto_2g.ko line 230 +p' > <debugfs>/control
-echo -n 'format "PEN_IN" -p' > <debugfs>/control				
+echo -n 'format "PEN_IN" +p' > <debugfs>/control	
+and off again
+echo -n 'format "PEN_IN" -p' > <debugfs>/control			
 
+another possibility based on per line number in the source file. (See https://www.kernel.org/doc/Documentation/dynamic-debug-howto.txt )
+echo -n 'file ./<path to source>/bosto_2g.ko line 230 +p' > <debugfs>/control
 
