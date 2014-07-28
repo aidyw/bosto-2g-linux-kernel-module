@@ -43,7 +43,7 @@ MODULE_LICENSE(DRIVER_LICENSE);
 #define HANWANG_TABLET_INT_SUB_CLASS	0x0001
 #define HANWANG_TABLET_INT_PROTOCOL		0x0002
 
-#define ART_MASTER_PKGLEN_MAX	10
+#define BOSTO_KINGTEE_22HD	10
 
 /* device IDs */
 #define STYLUS_DEVICE_ID	0x02
@@ -115,13 +115,13 @@ struct hanwang_features {
 
 static const struct hanwang_features features_array[] = {
 	{ 0x9016, "Bosto Kingtee 22HD", HANWANG_BOSTO_2GEN,
-	  ART_MASTER_PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
+	  BOSTO_KINGTEE_22HD, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
 	{ 0x9017, "Bosto Kingtee 14WA", HANWANG_ART_MASTER_III,
-	  ART_MASTER_PKGLEN_MAX, 0x3d84, 0x2672, 0x3f, 0x7f, 2048 },
+	  BOSTO_KINGTEE_22HD, 0x3d84, 0x2672, 0x3f, 0x7f, 2048 },
 	{ 0x852a, "Hanwang Art Master III 1308", HANWANG_ART_MASTER_III,
-	  ART_MASTER_PKGLEN_MAX, 0x7f00, 0x4f60, 0x3f, 0x7f, 2048 },
+	  BOSTO_KINGTEE_22HD, 0x7f00, 0x4f60, 0x3f, 0x7f, 2048 },
 	{ 0x8401, "Hanwang Art Master HD 5012", HANWANG_ART_MASTER_HD,
-	  ART_MASTER_PKGLEN_MAX, 0x678e, 0x4150, 0x3f, 0x7f, 1024 },
+	  BOSTO_KINGTEE_22HD, 0x678e, 0x4150, 0x3f, 0x7f, 1024 },
 };
 
 static const int hw_eventtypes[] = {
@@ -134,9 +134,12 @@ static const int hw_absevents[] = {
 };
 
 static const int hw_btnevents[] = {
-	BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_RUBBER,
-	BTN_TOOL_MOUSE, BTN_TOOL_FINGER,
-	BTN_0, BTN_1, BTN_2, BTN_3, BTN_4, BTN_5, BTN_6, BTN_7, BTN_8,
+/*		BTN_STYLUS 		seems to be the same as a center mouse button above the roll wheel.
+ 	 	BTN_STYLUS2 	right mouse button (Gedit)
+ 	 	BTN_DIGI 		seems to do nothing in relation to the stylus tool 
+		BTN_TOUCH		seems like a left mouse click, but all hell breaks loose depending on the application.*/
+		
+		BTN_DIGI, BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_BRUSH, BTN_TOOL_RUBBER, BTN_TOOL_PENCIL, BTN_TOOL_AIRBRUSH, BTN_TOOL_FINGER, BTN_TOOL_MOUSE
 };
 
 static const int hw_mscevents[] = {
@@ -149,216 +152,114 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	struct input_dev *input_dev = hanwang->dev;
 	struct usb_device *dev = hanwang->usbdev;
 	enum hanwang_tablet_type type = hanwang->features->type;
-	u16 x, y, p; 
+	u16 x, y, p;
 	
+	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 	switch (data[0]) {
-	case 0x02:	/* data packet */
+	case 0x02:			// Pen Event
+		//printk (KERN_DEBUG "Pen Event Packet\n" );		// Pen Event as defined in hanvon driver.
 		switch (data[1]) {
 		case 0x80:	/* tool prox out */
-			printk (KERN_DEBUG "Pen OUT [1] %x\n", data[1]);
 			hanwang->current_id = 0;
+			hanwang->current_tool = 0;
 			input_report_key(input_dev, hanwang->current_tool, 0);
+			input_report_key(input_dev, BTN_TOUCH, 0);
+			dev_dbg(&dev->dev, "TOOL OUT. PEN ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
+			dev_dbg(&dev->dev, "Bosto packet:TOOL OUT  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 			break;
 
-		case 0xc2:	/* first time tool prox in */
-			printk (KERN_DEBUG "Pen IN [1] %x ", data[1]);
+		case 0xc2:													// first time tool prox in
+			dev_dbg(&dev->dev, "TOOL IN: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool);
+			dev_dbg(&dev->dev, "Bosto packet:TOOL IN  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+				
 			switch (data[3] & 0xf0) {
-			case 0x20:												// Pen Tip in prox. Bosto 22HD
-				hanwang->current_id = CURSOR_DEVICE_ID;
-				hanwang->current_tool = BTN_TOOL_PEN;
-				input_report_key(input_dev, BTN_TOOL_PEN, 1);
-/*			case 0x30:												// art_master_HD
+			case 0x20:												// Stylus Tip in prox. Bosto 22HD
 				hanwang->current_id = STYLUS_DEVICE_ID;
-				hanwang->current_tool = BTN_TOOL_PEN;
-				input_report_key(input_dev, BTN_TOOL_PEN, 1);
-				break;
-*/
-			case 0xa0:												// Pen Eraser in prox. Bosto 2HD
-				hanwang->current_id = ERASER_DEVICE_ID;
-				hanwang->current_tool = BTN_TOOL_RUBBER;
-				input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
+				hanwang->current_tool = BTN_TOOL_PENCIL;
+				input_report_key(input_dev, BTN_TOUCH, 0);
+				input_report_key(input_dev, BTN_TOOL_PENCIL, 1);
+				dev_dbg(&dev->dev, "TOOL IN:Exit ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
 				break;
 
-/*			case 0xb0:	// art_master_HD
-				printk (KERN_DEBUG " [3]: %x\n", data[3]);
+			case 0xa0: // Stylus Eraser in prox. Bosto 2HD
 				hanwang->current_id = ERASER_DEVICE_ID;
 				hanwang->current_tool = BTN_TOOL_RUBBER;
+				input_report_key(input_dev, BTN_TOUCH, 0);
 				input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
-				printk (KERN_DEBUG "Report Key: Tool: %x\n", hanwang->current_tool);
-				break;	
-*/
-				
+				dev_dbg(&dev->dev, "TOOL IN ERASER:Exit ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool);
+				break;
+		
 			default:
-				printk (KERN_DEBUG " [3]: %x\n", data[3]);
 				hanwang->current_id = 0;
-				dev_dbg(&dev->dev,
-					"unknown tablet tool %02x ", data[0]);
+				dev_dbg(&dev->dev, "Unknown tablet tool %02x ", data[0]);
 				break;
 			}
 			break;
 			
 		case 0xa0 ... 0xa3:			// Pen trackable but not in contact with screen.
-				printk (KERN_DEBUG "Pen floating\n" );
-				hanwang->current_id = CURSOR_DEVICE_ID;
-					x = (data[2] << 8) | data[3];		// Set x ABS
-					y = (data[4] << 8) | data[5];		// Set y ABS
-	
-					switch (type) {
-						case HANWANG_BOSTO_2GEN: 
-							p = (data[6] << 3) |
-							((data[7] & 0xc0) >> 5) |
-							(data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifys the pressure sensitivity 
-							break;
-						case HANWANG_ART_MASTER_HD: 
-							p = (data[7] >> 6) | (data[6] << 2); // 1024 Level pressure sensitivity
-							break;
-						default:
-							p = 0;
-							break;
-					}
+			dev_dbg(&dev->dev, "PEN FLOATING ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
+			dev_dbg(&dev->dev, "Bosto packet:Float  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+				
+			x = (data[2] << 8) | data[3];		// Set x ABS
+			y = (data[4] << 8) | data[5];		// Set y ABS
+			p = 0;
+			input_report_key(input_dev, BTN_TOUCH, 0);
+
+			switch (data[1]) {
+			case 0xa0 ... 0xa1:
+				input_report_key(input_dev, BTN_STYLUS2, 0);
+				break;
+			case 0xa2 ... 0xa3:
+				input_report_key(input_dev, BTN_STYLUS2, 1);
+				break;
+			}
 			break;
 		
 		case 0xe0 ... 0xe3:		// Pen contact
-								// All a little strange; these 4 bytes are always seens whenever the pen is in contact with the tablet. 'e0 + e1', without the stylus button pressed and 'e2 + e3' with the stylus button pressed. Either of the buttons.
+								// All a little strange; these 4 bytes are always seen whenever the pen is in contact with the tablet. 'e0 + e1', without the stylus button pressed and 'e2 + e3' with the stylus button pressed. Either of the buttons.
 								// in either case the byte value jitters between a pair of either of the two states dependent on the button press.
-			printk (KERN_DEBUG "Pen contact\n" );
-			hanwang->current_id = STYLUS_DEVICE_ID;
+				dev_dbg(&dev->dev, "PEN TOUCH: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
+				dev_dbg(&dev->dev, "Bosto packet:Touch  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+				
+				input_report_key(input_dev, BTN_TOUCH, 1);
 				x = (data[2] << 8) | data[3];		// Set x ABS
 				y = (data[4] << 8) | data[5];		// Set y ABS
+				p = (data[6] << 3) | ((data[7] & 0xc0) >> 5) | (data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifies the pressure sensitivity 
 
-				switch (type) {
-					case HANWANG_BOSTO_2GEN: 
-						p = (data[6] << 3) |
-						((data[7] & 0xc0) >> 5) |
-						(data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifys the pressure sensitivity 
+				switch (data[1]) {
+					case 0xe0 ... 0xe1:
+						input_report_key(input_dev, BTN_STYLUS2, 0);
 						break;
-					case HANWANG_ART_MASTER_HD: 
-						p = (data[7] >> 6) | (data[6] << 2); // 1024 Level pressure sensitivity
-						break;
-					default:
-						p = 0;
+					case 0xe2 ... 0xe3:
+						input_report_key(input_dev, BTN_STYLUS2, 1);
 						break;
 				}
-		break;
-			
-
-		
-		default:	/* tool data packet */
-			
-			x = (data[2] << 8) | data[3];		// Set x ABS
-			y = (data[4] << 8) | data[5];		// Set y ABS
-
-			switch (type) {
-			case HANWANG_BOSTO_2GEN: 
-				p = (data[6] << 3) |
-				((data[7] & 0xc0) >> 5) |
-				(data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifys the pressure sensitivity 
 				break;
-/*
-			case HANWANG_ART_MASTER_HD: 
-				p = (data[7] >> 6) | (data[6] << 2); // 1024 Level pressure sensitivity
-				break;
-*/
-			default:
-				p = 0;
-				break;
-			}
-
-			input_report_abs(input_dev, ABS_X,
-						le16_to_cpup((__le16 *)&x));
-			input_report_abs(input_dev, ABS_Y,
-						le16_to_cpup((__le16 *)&y));
-			input_report_abs(input_dev, ABS_PRESSURE, le16_to_cpup((__le16 *)&p));
-			
-			/* input_report_abs(input_dev, ABS_TILT_X, data[7] & 0x3f);		// Does not seem to exist for Bosto
-			 input_report_abs(input_dev, ABS_TILT_Y, data[8] & 0x7f); */
-			
-			input_report_key(input_dev, BTN_STYLUS, data[1] & 0x02);
-			input_report_key(input_dev, BTN_STYLUS2, data[1] & 0x04);
-			break;
 		}
-		input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
-		input_event(input_dev, EV_MSC, MSC_SERIAL,
-				hanwang->features->pid);
 		break;
-
-/*
+		
 	case 0x0c:
-		// roll wheel
-		printk (KERN_DEBUG "Do we ever get here?/n" );
-		
-		hanwang->current_id = PAD_DEVICE_ID;
-
-		switch (type) {
-		case HANWANG_ART_MASTER_III:					// was HANWANG_ART_MASTER_III
-			input_report_key(input_dev, BTN_TOOL_FINGER, data[1] ||
-							data[2] || data[3]);
-			input_report_abs(input_dev, ABS_WHEEL, data[1]);
-			input_report_key(input_dev, BTN_0, data[2]);
-			for (i = 0; i < 8; i++)
-				input_report_key(input_dev,
-					 BTN_1 + i, data[3] & (1 << i));
-			break;
-
-		case HANWANG_ART_MASTER_HD:
-			input_report_key(input_dev, BTN_TOOL_FINGER, data[1] ||
-					data[2] || data[3] || data[4] ||
-					data[5] || data[6]);
-			input_report_abs(input_dev, ABS_RX,
-					((data[1] & 0x1f) << 8) | data[2]);
-			input_report_abs(input_dev, ABS_RY,
-					((data[3] & 0x1f) << 8) | data[4]);
-			input_report_key(input_dev, BTN_0, data[5] & 0x01);
-			for (i = 0; i < 4; i++) {
-				input_report_key(input_dev,
-					 BTN_1 + i, data[5] & (1 << i));
-				input_report_key(input_dev,
-					 BTN_5 + i, data[6] & (1 << i));
-			}
-			break;
-		}
-
+		dev_dbg(&dev->dev,"Tablet Event. Packet data[0]: %02x\n", data[0] );		// Tablet Event as defined in hanvon driver. 
 		input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
-		input_event(input_dev, EV_MSC, MSC_SERIAL, 0xffffffff);
-		break;
-*/
-
+		input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);
+		input_sync(input_dev);
+		
 	default:
-		dev_dbg(&dev->dev, "error packet  %02x ", data[0]);
+		dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
 		break;
 	}
-	printk (KERN_DEBUG "Report pid: %x\n", hanwang->features->pid);
-	printk (KERN_DEBUG "Report Current Tool: %x\n", hanwang->current_tool);
-	printk (KERN_DEBUG "Report Current Device ID: %x\n", hanwang->current_id);
-	printk (KERN_DEBUG "Report BTN_STYLUS: %x\n", data[1] & 0x02);
-	printk (KERN_DEBUG "Report ABS_X %x\n", le16_to_cpup((__le16 *)&x));
-	printk (KERN_DEBUG "Report ABS_Y %x\n", le16_to_cpup((__le16 *)&y));
-	printk (KERN_DEBUG "Report ABS_PRESSURE %d\n", le16_to_cpup((__le16 *)&p));
-	printk (KERN_DEBUG "Bosto packet:  [B1:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
 	
+	input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
+	input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
+	input_report_abs(input_dev, ABS_TILT_X, 0x00);
+	input_report_abs(input_dev, ABS_TILT_Y, 0x00);
+	input_report_abs(input_dev, ABS_PRESSURE, le16_to_cpup((__le16 *)&p));
+	input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
+	input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);		
+		
 	input_sync(input_dev);
 }
-/*
-static void get_pos_press ()
-{
-	x = (data[2] << 8) | data[3];		// Set x ABS
-				y = (data[4] << 8) | data[5];		// Set y ABS
-	
-				switch (type) {
-				case HANWANG_BOSTO_2GEN: 
-					p = (data[6] << 3) |
-					((data[7] & 0xc0) >> 5) |
-					(data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifys the pressure sensitivity 
-					break;
-				case HANWANG_ART_MASTER_HD: 
-					p = (data[7] >> 6) | (data[6] << 2); // 1024 Level pressure sensitivity
-					break;
-				default:
-					p = 0;
-					break;
-				}
-}
-*/
+
 static void hanwang_irq(struct urb *urb)
 {
 	struct hanwang *hanwang = urb->context;
@@ -397,7 +298,7 @@ static int hanwang_open(struct input_dev *dev)
 	if (usb_submit_urb(hanwang->irq, GFP_KERNEL))
 		return -EIO;
 
-	printk(KERN_INFO "in hanwang open.\n" );
+	// printk(KERN_INFO "in hanwang open.\n" );
 	return 0;
 }
 
