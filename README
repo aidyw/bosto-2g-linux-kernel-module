@@ -47,3 +47,11 @@ After insmod, check with dmesg, if the module was loaded properly.
 "Bosto 2nd Generation USB Driver module being initialised." should appear in the listing.
 
 lsmod should also contain bosto_2g in its listing: lsmod | grep bosto_2g
+
+Debug ouput now pattern matched to entries in the /sys/kernel/debug/dynamic_debug/control file
+For example to see each time the driver detects a PEN_IN event, echo the following:
+
+echo -n 'file ./<path to source>/bosto_2g.ko line 230 +p' > <debugfs>/control
+echo -n 'format "PEN_IN" -p' > <debugfs>/control				
+
+
