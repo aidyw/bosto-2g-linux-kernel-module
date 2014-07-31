@@ -122,7 +122,7 @@ static const struct hanwang_features features_array[] = {
 	{ USB_PRODUCT_BOSTO22HD, "Bosto Kingtee 22HD", HANWANG_BOSTO_22HD,
 		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
 	{ USB_PRODUCT_BOSTO14WA, "Bosto Kingtee 14WA", HANWANG_BOSTO_14WA,
-		PKGLEN_MAX, 0x3d84, 0x2672, 0x3f, 0x7f, 2048 },
+		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
 	{ USB_PRODUCT_ART_MASTER_III, "Hanwang Art Master III 1308", HANWANG_ART_MASTER_III,
 		PKGLEN_MAX, 0x7f00, 0x4f60, 0x3f, 0x7f, 2048 },
 	{ USB_PRODUCT_ART_MASTER_HD, "Hanwang Art Master HD 5012", HANWANG_ART_MASTER_HD,
