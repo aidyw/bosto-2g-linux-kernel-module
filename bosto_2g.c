@@ -57,25 +57,6 @@ MODULE_LICENSE(DRIVER_LICENSE);
 #define PAD_DEVICE_ID		0x0F
 
 /* match vendor and interface info */
-/* #define HANWANG_TABLET_DEVICE(vend, prod, cl, sc, pr) \
-	.match_flags = USB_DEVICE_ID_MATCH_VENDOR \
-		| USB_DEVICE_ID_MATCH_INT_INFO, \
-	.idVendor = (vend), \
-	.idProduct = (prod), \
-	.bInterfaceClass = (cl), \
-	.bInterfaceSubClass = (sc), \
-	.bInterfaceProtocol = (pr)
-*/
-
-/* #define HANWANG_TABLET_DEVICE(vend, prod, cl, sc, pr) \
-    .match_flags = USB_DEVICE_ID_MATCH_INT_INFO \
-            | USB_DEVICE_ID_MATCH_DEVICE, \
-        .idVendor = (vend), \
-        .idProduct = (prod), \
-        .bInterfaceClass = (cl), \
-        .bInterfaceSubClass = (sc), \
-        .bInterfaceProtocol = (pr)
-*/
 
 #define HANWANG_TABLET_DEVICE(vend, prod, cl, sc, pr) \
     .match_flags = USB_DEVICE_ID_MATCH_INT_INFO \
@@ -139,12 +120,12 @@ static const int hw_absevents[] = {
 };
 
 static const int hw_btnevents[] = {
-/*		BTN_STYLUS 		seems to be the same as a center mouse button above the roll wheel.
- 	 	BTN_STYLUS2 	right mouse button (Gedit)
- 	 	BTN_DIGI 		seems to do nothing in relation to the stylus tool 
-		BTN_TOUCH		seems like a left mouse click, but all hell breaks loose depending on the application.*/
+/*	BTN_STYLUS 		seems to be the same as a center mouse button above the roll wheel.
+ 	BTN_STYLUS2		right mouse button (Gedit)
+ 	BTN_DIGI		seems to do nothing in relation to the stylus tool 
+	BTN_TOUCH		seems like a left mouse click, but all hell breaks loose depending on the application.*/
 		
-		BTN_DIGI, BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_BRUSH, BTN_TOOL_RUBBER, BTN_TOOL_PENCIL, BTN_TOOL_AIRBRUSH, BTN_TOOL_FINGER, BTN_TOOL_MOUSE
+	BTN_DIGI, BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_BRUSH, BTN_TOOL_RUBBER, BTN_TOOL_PENCIL, BTN_TOOL_AIRBRUSH, BTN_TOOL_FINGER, BTN_TOOL_MOUSE
 };
 
 static const int hw_mscevents[] = {
@@ -161,32 +142,42 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	
 	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 	switch (data[0]) {
-	case 0x02:			// Pen Event
+		
+	/* pen event */
+	case 0x02:
 		//printk (KERN_DEBUG "Pen Event Packet\n" );		// Pen Event as defined in hanvon driver.
 		switch (data[1]) {
-		case 0x80:	/* tool prox out */
+			
+		/* tool prox out */
+		case 0x80:	
 			hanwang->current_id = 0;
 			hanwang->current_tool = 0;
 			input_report_key(input_dev, hanwang->current_tool, 0);
 			input_report_key(input_dev, BTN_TOUCH, 0);
 			dev_dbg(&dev->dev, "TOOL OUT. PEN ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
-			dev_dbg(&dev->dev, "Bosto packet:TOOL OUT  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+			dev_dbg(&dev->dev, "Bosto packet:TOOL OUT  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
+					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 			break;
-
-		case 0xc2:													// first time tool prox in
+			
+		/* first time tool prox in */
+		case 0xc2:	
 			dev_dbg(&dev->dev, "TOOL IN: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool);
-			dev_dbg(&dev->dev, "Bosto packet:TOOL IN  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+			dev_dbg(&dev->dev, "Bosto packet:TOOL IN  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
+					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 				
 			switch (data[3] & 0xf0) {
-			case 0x20:												// Stylus Tip in prox. Bosto 22HD
+			
+			/* Stylus Tip in prox. Bosto 22HD */
+			case 0x20:
 				hanwang->current_id = STYLUS_DEVICE_ID;
 				hanwang->current_tool = BTN_TOOL_PENCIL;
 				input_report_key(input_dev, BTN_TOUCH, 0);
 				input_report_key(input_dev, BTN_TOOL_PENCIL, 1);
 				dev_dbg(&dev->dev, "TOOL IN:Exit ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
 				break;
-
-			case 0xa0: // Stylus Eraser in prox. Bosto 2HD
+			
+			/* Stylus Eraser in prox. Bosto 22HD */
+			case 0xa0: 
 				hanwang->current_id = ERASER_DEVICE_ID;
 				hanwang->current_tool = BTN_TOOL_RUBBER;
 				input_report_key(input_dev, BTN_TOUCH, 0);
@@ -201,9 +192,11 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			}
 			break;
 			
-		case 0xa0 ... 0xa3:			// Pen trackable but not in contact with screen.
+		/* Pen trackable but not in contact with screen */
+		case 0xa0 ... 0xa3:
 			dev_dbg(&dev->dev, "PEN FLOATING ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
-			dev_dbg(&dev->dev, "Bosto packet:Float  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+			dev_dbg(&dev->dev, "Bosto packet:Float  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
+					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 				
 			x = (data[2] << 8) | data[3];		// Set x ABS
 			y = (data[4] << 8) | data[5];		// Set y ABS
@@ -219,32 +212,40 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 				break;
 			}
 			break;
-		
-		case 0xe0 ... 0xe3:		// Pen contact
-								// All a little strange; these 4 bytes are always seen whenever the pen is in contact with the tablet. 'e0 + e1', without the stylus button pressed and 'e2 + e3' with the stylus button pressed. Either of the buttons.
-								// in either case the byte value jitters between a pair of either of the two states dependent on the button press.
-				dev_dbg(&dev->dev, "PEN TOUCH: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
-				dev_dbg(&dev->dev, "Bosto packet:Touch  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
-				
-				input_report_key(input_dev, BTN_TOUCH, 1);
-				x = (data[2] << 8) | data[3];		// Set x ABS
-				y = (data[4] << 8) | data[5];		// Set y ABS
-				p = (data[6] << 3) | ((data[7] & 0xc0) >> 5) | (data[1] & 0x01);				// Set 2048 Level pressure sensitivity. 	NOTE: The stylus button, magnifies the pressure sensitivity 
 
-				switch (data[1]) {
-					case 0xe0 ... 0xe1:
-						input_report_key(input_dev, BTN_STYLUS2, 0);
-						break;
-					case 0xe2 ... 0xe3:
-						input_report_key(input_dev, BTN_STYLUS2, 1);
-						break;
-				}
-				break;
+		/* Pen contact */
+		case 0xe0 ... 0xe3:		
+								
+			/* All a little strange; these 4 bytes are always seen whenever the pen is in contact with the tablet. 
+			 * 'e0 + e1', without the stylus button pressed and 'e2 + e3' with the stylus button pressed. Either of the buttons.
+			 * In either case the byte value jitters between a pair of either of the two states dependent on the button press. */
+
+			dev_dbg(&dev->dev, "PEN TOUCH: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
+			dev_dbg(&dev->dev, "Bosto packet:Touch  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
+					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+				
+			input_report_key(input_dev, BTN_TOUCH, 1);
+			x = (data[2] << 8) | data[3];		/* Set x ABS */
+			y = (data[4] << 8) | data[5];		/* Set y ABS */
+				
+			/* Set 2048 Level pressure sensitivity. NOTE: The stylus button, magnifies the pressure sensitivity */
+			p = (data[6] << 3) | ((data[7] & 0xc0) >> 5) | (data[1] & 0x01);				
+
+			switch (data[1]) {
+				case 0xe0 ... 0xe1:
+					input_report_key(input_dev, BTN_STYLUS2, 0);
+					break;
+				case 0xe2 ... 0xe3:
+					input_report_key(input_dev, BTN_STYLUS2, 1);
+					break;
+			}
+			break;
 		}
 		break;
 		
 	case 0x0c:
-		dev_dbg(&dev->dev,"Tablet Event. Packet data[0]: %02x\n", data[0] );		// Tablet Event as defined in hanvon driver. 
+		/* Tablet Event as defined in hanvon driver. */
+		dev_dbg(&dev->dev,"Tablet Event. Packet data[0]: %02x\n", data[0] );
 		input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 		input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);
 		input_sync(input_dev);
@@ -303,7 +304,7 @@ static int hanwang_open(struct input_dev *dev)
 	if (usb_submit_urb(hanwang->irq, GFP_KERNEL))
 		return -EIO;
 
-	// printk(KERN_INFO "in hanwang open.\n" );
+	/* printk(KERN_INFO "in hanwang open.\n" ); */
 	return 0;
 }
 
@@ -319,8 +320,7 @@ static bool get_features(struct usb_device *dev, struct hanwang *hanwang)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(features_array); i++) {
-		if (le16_to_cpu(dev->descriptor.idProduct) ==
-				features_array[i].pid) {
+		if (le16_to_cpu(dev->descriptor.idProduct) == features_array[i].pid) {
 			hanwang->features = &features_array[i];
 			return true;
 		}
