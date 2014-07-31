@@ -20,7 +20,7 @@ Installation
 
 These instructions are for Ubuntu 14.04 but will likely work or be adaptable to other distributions.
 
-**Build the driver**
+**Build and install the driver**
 
 ```bash
 sudo apt-get install build-essential linux-headers-generic git     # install requirements
@@ -28,6 +28,8 @@ cd ~
 git clone https://github.com/aidyw/bosto-2g-linux-kernel-module.git
 cd bosto-2g-linux-kernel-module
 make clean && make
+ln -s `pwd`/bosto_2g.ko /lib/modules/`uname -r`
+depmod
 ```
 
 **Load the module**
@@ -52,8 +54,8 @@ Now unbind and rebind the USB port to the right driver:
 
 ```bash
 sudo -i                                                           # be careful, admin permissions
+modprobe bosto_2g                                                 # load the driver
 echo -n "$USB_BUS_ID" > /sys/bus/usb/drivers/usbhid/unbind        # unbind USBHID
-insmod ./bosto_2g.ko                                              # insert the driver
 echo -n "$USB_BUS_ID" > /sys/bus/usb/drivers/bosto_2g/bind        # bind bosto_2g
 exit
 ```
