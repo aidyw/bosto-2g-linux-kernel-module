@@ -120,10 +120,13 @@ static const int hw_absevents[] = {
 };
 
 static const int hw_btnevents[] = {
-/*	BTN_STYLUS 		seems to be the same as a center mouse button above the roll wheel.
+/*
+	BTN_STYLUS 		seems to be the same as a center mouse button above the roll wheel.
  	BTN_STYLUS2		right mouse button (Gedit)
  	BTN_DIGI		seems to do nothing in relation to the stylus tool 
-	BTN_TOUCH		seems like a left mouse click, but all hell breaks loose depending on the application.*/
+	BTN_TOUCH		seems like a left mouse click, but all hell
+				breaks loose depending on the application.
+*/
 		
 	BTN_DIGI, BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_BRUSH, BTN_TOOL_RUBBER, BTN_TOOL_PENCIL, BTN_TOOL_AIRBRUSH, BTN_TOOL_FINGER, BTN_TOOL_MOUSE
 };
@@ -143,6 +146,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	
 	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+
 	switch (data[0]) {
 		
 	/* pen event */
