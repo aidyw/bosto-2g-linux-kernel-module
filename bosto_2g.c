@@ -38,7 +38,7 @@ MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE(DRIVER_LICENSE);
 
 #define USB_VENDOR_ID_HANWANG		0x0b57
-#define USB_PRODUCT_BOSTO22         	0x9016
+#define USB_PRODUCT_BOSTO22         	0x9018
 #define HANWANG_TABLET_INT_CLASS	0x0003
 #define HANWANG_TABLET_INT_SUB_CLASS	0x0001
 #define HANWANG_TABLET_INT_PROTOCOL	0x0002
@@ -111,7 +111,7 @@ struct hanwang_features {
 };
 
 static const struct hanwang_features features_array[] = {
-	{ 0x9016, "Bosto Kingtee 22HD ", HANWANG_BOSTO_2GEN,
+	{ 0x9018, "Bosto Kingtee 22HD ", HANWANG_BOSTO_2GEN,
 	  ART_MASTER_PKGLEN_MAX, 0x2802, 0x1d00, 0x3f, 0x7f, 2048 }
 };
 /*
