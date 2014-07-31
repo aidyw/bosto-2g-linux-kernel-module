@@ -137,15 +137,18 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	unsigned char *data = hanwang->data;
 	struct input_dev *input_dev = hanwang->dev;
 	struct usb_device *dev = hanwang->usbdev;
-	enum hanwang_tablet_type type = hanwang->features->type;
-	u16 x, y, p;
+	u16 x = 0;
+	u16 y = 0;
+	u16 p = 0;
 	
-	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
+			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 	switch (data[0]) {
 		
 	/* pen event */
 	case 0x02:
-		//printk (KERN_DEBUG "Pen Event Packet\n" );		// Pen Event as defined in hanvon driver.
+		//printk (KERN_DEBUG "Pen Event Packet\n" );		
+		/* Pen Event as defined in hanvon driver. */
 		switch (data[1]) {
 			
 		/* tool prox out */
