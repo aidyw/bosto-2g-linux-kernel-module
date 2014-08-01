@@ -1,2 +1,3 @@
-# Rules for hotplugging Bosto tablets
+# Rules for hotplugging 2nd generation Bosto tablets: 22HD and 14WA
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0b57", ATTRS{idProduct}=="9016", RUN="/usr/local/bin/insert_bosto_2g %k %s{idVendor} %s{idProduct}"
 ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0b57", ATTRS{idProduct}=="9018", RUN="/usr/local/bin/insert_bosto_2g %k %s{idVendor} %s{idProduct}"
