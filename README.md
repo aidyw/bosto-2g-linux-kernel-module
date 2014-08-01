@@ -47,35 +47,7 @@ sudo make install
 modprobe bosto_2g
 ```
 
-**Bind the module**
-
-The USBHID module grabs the pen's USB interface as soon as the tablet is plugged in.
-It has to be unbound before the driver can work.
-
-First find out what the bus ID of the tablet is:
-
-```bash
-# unplug the tablet
-ls /sys/bus/usb/drivers/usbhid
-
-# take note of the bound interface ID's, numbers like '2-3:1.0'. Or you might not have any.
-# plug in the tablet
-# now see which numbers were added by the tablet
-ls /sys/bus/usb/drivers/usbhid
-
-# the highest new number will be the pen's USB interface.
-# set up the id for us to bind/unbind:
-USB_BUS_ID="2-3:1.0"    # substitute your own Bus ID here
-```
-
-Now unbind and rebind the USB port to the right driver:
-
-```bash
-sudo -i                                                           # be careful, admin permissions
-echo -n "$USB_BUS_ID" > /sys/bus/usb/drivers/usbhid/unbind        # unbind USBHID
-echo -n "$USB_BUS_ID" > /sys/bus/usb/drivers/bosto_2g/bind        # bind bosto_2g
-exit
-```
+Now if you plug in the tablet, the pen should work right away. If not, please post an issue and we'll try to improve the code.
 
 TODO
 ====
@@ -90,7 +62,7 @@ Diagnostics
 After running modprobe, check if the module was loaded properly with dmesg.
 "Bosto 2nd Generation USB Driver module being initialised." should appear in the listing.
 
-lsmod should also contain bosto_2g in its listing: lsmod | grep bosto_2g
+lsmod should also contain `bosto_2g` in its listing: lsmod | grep bosto_2g
 
 Debug ouput now pattern matched to entries in the /sys/kernel/debug/dynamic_debug/control file
 For example to see each time the driver detects a PEN_IN event, echo the following:
