@@ -41,12 +41,6 @@ make clean && make
 sudo make install
 ```
 
-**Load the module**
-
-```bash
-modprobe bosto_2g
-```
-
 Now if you plug in the tablet, the pen should work right away. If not, please post an issue and we'll try to improve the code.
 
 TODO
