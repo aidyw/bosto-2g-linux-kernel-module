@@ -25,6 +25,15 @@ Current Status
 * Keys: produce numbers like a numeric keypad
 * Scroll wheels: produce 'a', 'b', 'c', 'd' like a keyboard
 
+**Tested programs**
+
+All my tests have so far been on Ubuntu 14.04 and:
+
+* GIMP 2.8
+* MyPaint 1.1.0
+
+Krita 2.8.1 doesn't seem to work properly, though a newer version is known to work. We're looking into it.
+
 Installation
 ============
 
