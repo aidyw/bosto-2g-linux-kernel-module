@@ -209,17 +209,6 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			y = (data[4] << 8) | data[5];		// Set y ABS
 			p = 0;
 
-			/* switch (hanwang->current_tool) {
-			case BTN_TOOL_BRUSH:
-				input_report_key(input_dev, BTN_TOOL_BRUSH, 1);
-				break;
-			case BTN_TOOL_PEN:
-				input_report_key(input_dev, BTN_TOOL_PEN, 1);
-				break;
-			case BTN_TOOL_RUBBER:
-				input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
-				break;
-			}*/
 			input_report_key(input_dev, hanwang->current_tool, 1);
 			input_report_key(input_dev, BTN_TOUCH, 0);
 
@@ -244,17 +233,6 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			dev_dbg(&dev->dev, "Bosto packet:Touch  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 
-			/*switch (hanwang->current_tool) {
-			case BTN_TOOL_BRUSH:
-				input_report_key(input_dev, BTN_TOOL_PEN, 1);
-				break;
-			case BTN_TOOL_PEN:
-				input_report_key(input_dev, BTN_TOOL_PEN, 1);
-				break;
-			case BTN_TOOL_RUBBER:
-				input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
-				break;
-			}*/
 			input_report_key(input_dev, hanwang->current_tool, 1);
 			input_report_key(input_dev, BTN_TOUCH, 1);
 			x = (data[2] << 8) | data[3];		/* Set x ABS */
