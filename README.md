@@ -25,10 +25,26 @@ Current Status
 * Keys: produce numbers like a numeric keypad
 * Scroll wheels: produce 'a', 'b', 'c', 'd' like a keyboard
 
+**Tested programs**
+
+Tracking and pressure sensitivity working on:
+
+* GIMP 2.8
+* MyPaint 1.1.0
+* Synfig 0.64.1
+
+In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you'll need to map axis 6 to pressure. 
+
+Krita 2.8.1 doesn't seem to work properly, though a newer version is known to work. We're looking into it.
+
+Inkscape 0.48's new Device configuration seems to lack the ability to map axes to functions, so pressure is not working. We're looking into it.
+
+**Distributions**
+
+The installation has been tested on Ubuntu 13.10 and Ubuntu 14.04. Please let us know your experiences on other distributions.
+
 Installation
 ============
-
-These instructions are for Ubuntu 14.04 but will likely work or be adaptable to other distributions.
 
 **Build and install the driver**
 
@@ -37,46 +53,13 @@ sudo apt-get install build-essential linux-headers-generic git     # install req
 cd ~
 git clone https://github.com/aidyw/bosto-2g-linux-kernel-module.git
 cd bosto-2g-linux-kernel-module
+git checkout <branch>   # only if you want to change the branch
 make clean && make
 sudo make install
 ```
 
-**Load the module**
 
-```bash
-modprobe bosto_2g
-```
-
-**Bind the module**
-
-The USBHID module grabs the pen's USB interface as soon as the tablet is plugged in.
-It has to be unbound before the driver can work.
-
-First find out what the bus ID of the tablet is:
-
-```bash
-# unplug the tablet
-ls /sys/bus/usb/drivers/usbhid
-
-# take note of the bound interface ID's, numbers like '2-3:1.0'. Or you might not have any.
-# plug in the tablet
-# now see which numbers were added by the tablet
-ls /sys/bus/usb/drivers/usbhid
-
-# the highest new number will be the pen's USB interface.
-# set up the id for us to bind/unbind:
-USB_BUS_ID="2-3:1.0"    # substitute your own Bus ID here
-```
-
-Now unbind and rebind the USB port to the right driver:
-
-```bash
-sudo -i                                                           # be careful, admin permissions
-echo -n "$USB_BUS_ID" > /sys/bus/usb/drivers/usbhid/unbind        # unbind USBHID
-echo -n "$USB_BUS_ID" > /sys/bus/usb/drivers/bosto_2g/bind        # bind bosto_2g
-exit
-```
-
+The "git checkout" to change the branch allows you to select a different stream of development. Currently the "master" branch is mostly focused on getting the 22HD working well with Krita. The "bosto_14wa" branch is focused on getting the 14WA to work with GIMP, MyPaint, Synfig and Inkscape. The "master" branch reports the name of the tablet as a "Hanwang Art Master III" which is currently a work-around to get Krita working.
 TODO
 ====
 
@@ -102,3 +85,9 @@ echo -n 'format "PEN_IN" -p' > <debugfs>/control
 Another possibility based on per line number in the source file.
 (See https://www.kernel.org/doc/Documentation/dynamic-debug-howto.txt )
 echo -n 'file ./<path to source>/bosto_2g.ko line 230 +p' > <debugfs>/control
+
+Feedback
+========
+
+The best place for feedback is probably the Bosto community Google Group:
+https://groups.google.com/forum/#!categories/bosto-user-group/mac--linux-discussion
