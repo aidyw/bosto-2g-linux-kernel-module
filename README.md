@@ -31,12 +31,12 @@ Tracking and pressure sensitivity working on:
 
 * GIMP 2.8
 * MyPaint 1.1.0
+* Inkscape 0.48
+* Synfig 0.64.1
 
-In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you'll need to map axis 6 to pressure. 
+In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you might need to map axis 3 to pressure (but that's usually the default). 
 
 Krita 2.8.1 doesn't seem to work properly, though a newer version is known to work. We're looking into it.
-
-Inkscape 0.48's new Device configuration seems to lack the ability to map axes to functions, so pressure is not working. We're looking into it.
 
 **Distributions**
 
