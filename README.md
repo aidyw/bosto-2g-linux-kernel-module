@@ -31,12 +31,15 @@ Tracking and pressure sensitivity working on:
 
 * GIMP 2.8
 * MyPaint 1.1.0
+* Inkscape 0.48
+* Synfig 0.64.1
+* Krita 2.9 pre-alpha (3 August 2014)
 
-In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you'll need to map axis 6 to pressure. 
+In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you might need to map axis 3 to pressure (but that's usually the default). 
 
-Krita 2.8.1 doesn't seem to work properly, though a newer version is known to work. We're looking into it.
-
-Inkscape 0.48's new Device configuration seems to lack the ability to map axes to functions, so pressure is not working. We're looking into it.
+* Krita 2.7.2 has tracking but it's unknown right now whether pressure works.
+* Krita 2.8.1 doesn't seem to work at all.
+* Krita 2.9 pre-alpha (3 August 2014) works fine.
 
 **Distributions**
 
@@ -64,7 +67,7 @@ The "git checkout" to change the branch allows you to select a different stream 
 TODO
 ====
 
-1. Make the pen driver load automatically when the tablet is plugged in
+1. Make the pen driver load automatically when the tablet is plugged in  <-- done (until we find a nicer solution)
 2. Write another or configure USBHID driver to allow remapping of keys and scroll wheels
 3. Try to get the driver updated in the kernel tree so no installation is required in future
 
@@ -92,3 +95,4 @@ Feedback
 
 The best place for feedback is probably the Bosto community Google Group:
 https://groups.google.com/forum/#!categories/bosto-user-group/mac--linux-discussion
+
