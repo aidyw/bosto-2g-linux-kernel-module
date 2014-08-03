@@ -31,7 +31,6 @@ Tracking and pressure sensitivity working on:
 
 * GIMP 2.8
 * MyPaint 1.1.0
-* Synfig 0.64.1
 
 In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you'll need to map axis 6 to pressure. 
 
