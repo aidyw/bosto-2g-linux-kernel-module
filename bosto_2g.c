@@ -115,8 +115,7 @@ static const int hw_eventtypes[] = {
 };
 
 static const int hw_absevents[] = {
-	ABS_X, ABS_Y, ABS_TILT_X, ABS_TILT_Y, ABS_WHEEL,
-	ABS_RX, ABS_RY, ABS_PRESSURE, ABS_MISC,
+	ABS_X, ABS_Y, ABS_PRESSURE, ABS_MISC
 };
 
 static const int hw_btnevents[] = {
@@ -267,8 +266,6 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	
 	input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
 	input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
-	input_report_abs(input_dev, ABS_TILT_X, 0x00);
-	input_report_abs(input_dev, ABS_TILT_Y, 0x00);
 	input_report_abs(input_dev, ABS_PRESSURE, le16_to_cpup((__le16 *)&p));
 	input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 	input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);		
@@ -408,10 +405,6 @@ static int hanwang_probe(struct usb_interface *intf, const struct usb_device_id 
 			     0, hanwang->features->max_x, 4, 0);
 	input_set_abs_params(input_dev, ABS_Y,
 			     0, hanwang->features->max_y, 4, 0);
-	input_set_abs_params(input_dev, ABS_TILT_X,
-			     0, hanwang->features->max_tilt_x, 0, 0);
-	input_set_abs_params(input_dev, ABS_TILT_Y,
-			     0, hanwang->features->max_tilt_y, 0, 0);
 	input_set_abs_params(input_dev, ABS_PRESSURE,
 			     0, hanwang->features->max_pressure, 0, 0);
 

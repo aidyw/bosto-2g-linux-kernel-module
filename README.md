@@ -33,6 +33,18 @@ Tracking and pressure sensitivity working on:
 * MyPaint 1.1.0
 * Inkscape 0.48
 * Synfig 0.64.1
+* Krita 2.9 pre-alpha (3 August 2014)
+
+In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you might need to map axis 3 to pressure (but that's usually the default). 
+
+* Krita 2.7.2 has tracking but it's unknown right now whether pressure works.
+* Krita 2.8.1 doesn't seem to work at all.
+* Krita 2.9 pre-alpha (3 August 2014) works fine.
+
+**Distributions**
+
+The installation has been tested on Ubuntu 13.10 and Ubuntu 14.04. Please let us know your experiences on other distributions.
+
 
 In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you might need to map axis 3 to pressure (but that's usually the default). 
 
@@ -57,12 +69,17 @@ make clean && make
 sudo make install
 ```
 
+**Load the module**
+Now if you plug in the tablet, the pen should work right away. If not, please post an issue and we'll try to improve the code.
 
-The "git checkout" to change the branch allows you to select a different stream of development. Currently the "master" branch is mostly focused on getting the 22HD working well with Krita. The "bosto_14wa" branch is focused on getting the 14WA to work with GIMP, MyPaint, Synfig and Inkscape. The "master" branch reports the name of the tablet as a "Hanwang Art Master III" which is currently a work-around to get Krita working.
+The "git checkout" to change the branch allows you to select a different stream of development.
+The "master" branch is the default and should be the right choice for the official release version.
+
+
 TODO
 ====
 
-1. Make the pen driver load automatically when the tablet is plugged in
+1. Make the pen driver load automatically when the tablet is plugged in  <-- done (until we find a nicer solution)
 2. Write another or configure USBHID driver to allow remapping of keys and scroll wheels
 3. Try to get the driver updated in the kernel tree so no installation is required in future
 
@@ -72,7 +89,7 @@ Diagnostics
 After running modprobe, check if the module was loaded properly with dmesg.
 "Bosto 2nd Generation USB Driver module being initialised." should appear in the listing.
 
-lsmod should also contain bosto_2g in its listing: lsmod | grep bosto_2g
+lsmod should also contain `bosto_2g` in its listing: lsmod | grep bosto_2g
 
 Debug ouput now pattern matched to entries in the /sys/kernel/debug/dynamic_debug/control file
 For example to see each time the driver detects a PEN_IN event, echo the following:
@@ -90,3 +107,4 @@ Feedback
 
 The best place for feedback is probably the Bosto community Google Group:
 https://groups.google.com/forum/#!categories/bosto-user-group/mac--linux-discussion
+
