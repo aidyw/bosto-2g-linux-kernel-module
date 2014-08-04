@@ -104,10 +104,6 @@ static const struct hanwang_features features_array[] = {
 		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
 	{ USB_PRODUCT_BOSTO14WA, "Bosto Kingtee 14WA", HANWANG_BOSTO_14WA,
 		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
-	{ USB_PRODUCT_ART_MASTER_III, "Hanwang Art Master III 1308", HANWANG_ART_MASTER_III,
-		PKGLEN_MAX, 0x7f00, 0x4f60, 0x3f, 0x7f, 2048 },
-	{ USB_PRODUCT_ART_MASTER_HD, "Hanwang Art Master HD 5012", HANWANG_ART_MASTER_HD,
-		PKGLEN_MAX, 0x678e, 0x4150, 0x3f, 0x7f, 1024 },
 };
 
 static const int hw_eventtypes[] = {
@@ -201,13 +197,14 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			
 		/* Pen trackable but not in contact with screen */
 		case 0xa0 ... 0xa3:
-			dev_dbg(&dev->dev, "PEN FLOATING ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
+			dev_dbg(&dev->dev, "PEN FLOAT: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
 			dev_dbg(&dev->dev, "Bosto packet:Float  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 				
 			x = (data[2] << 8) | data[3];		// Set x ABS
 			y = (data[4] << 8) | data[5];		// Set y ABS
 			p = 0;
+			//dev_dbg(&dev->dev, "PEN FLOAT: ABS_PRESSURE [6]:[7]  %s:%s   p = %d\n", byte_to_binary(data[6]), byte_to_binary(data[7]), p );
 
 			 switch (hanwang->current_tool) {
 			case BTN_TOOL_BRUSH:
@@ -267,8 +264,9 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			y = (data[4] << 8) | data[5];		/* Set y ABS */
 				
 			/* Set 2048 Level pressure sensitivity. NOTE: The stylus button, magnifies the pressure sensitivity */
-			p = (data[6] << 3) | ((data[7] & 0xc0) >> 5) | (data[1] & 0x01);				
+			p = (data[6] << 3) | ((data[7] & 0xc0) >> 5);		
 
+			dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
 			switch (data[1]) {
 				case 0xe0 ... 0xe1:
 					input_report_key(input_dev, BTN_STYLUS2, 0);
@@ -297,7 +295,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
 	input_report_abs(input_dev, ABS_TILT_X, 0x00);
 	input_report_abs(input_dev, ABS_TILT_Y, 0x00);
-	input_report_abs(input_dev, ABS_PRESSURE, le16_to_cpup((__le16 *)&p));
+	input_report_abs(input_dev, ABS_PRESSURE, p ); //le16_to_cpup((__le16 *)&p));
 	input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 	input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);		
 		
