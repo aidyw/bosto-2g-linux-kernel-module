@@ -139,6 +139,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	u16 x;
 	u16 y;
 	u16 p = 0;
+	//x = hanwang->ABS_X;
 	
 	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
@@ -266,7 +267,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			/* Set 2048 Level pressure sensitivity. NOTE: The stylus button, magnifies the pressure sensitivity */
 			p = (data[6] << 3) | ((data[7] & 0xc0) >> 5);		
 
-			dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
+			//dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
 			switch (data[1]) {
 				case 0xe0 ... 0xe1:
 					input_report_key(input_dev, BTN_STYLUS2, 0);
@@ -431,9 +432,9 @@ static int hanwang_probe(struct usb_interface *intf, const struct usb_device_id 
 		__set_bit(hw_mscevents[i], input_dev->mscbit);
 
 	input_set_abs_params(input_dev, ABS_X,
-			     0, hanwang->features->max_x, 4, 0);
+			     0, hanwang->features->max_x, 0, 0);
 	input_set_abs_params(input_dev, ABS_Y,
-			     0, hanwang->features->max_y, 4, 0);
+			     0, hanwang->features->max_y, 0, 0);
 	input_set_abs_params(input_dev, ABS_TILT_X,
 			     0, hanwang->features->max_tilt_x, 0, 0);
 	input_set_abs_params(input_dev, ABS_TILT_Y,
