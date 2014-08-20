@@ -16,14 +16,19 @@ The 14WA tablet requires two different drivers, one for the pen and one for the 
 The pen driver works quite well (with proper tracking and pressure support) but key support
 is handled by the USBHID driver which treats the tablet like a keyboard. This means the keys
 emulate numbers and letters. We are working to improve this.
+The pen driver has a landing spot in a switch statement to handle buttons events from the tablet. This is a work in progress.
+Hardware needed such as 22HD+ with tablet buttons.
 
 Current Status
 ==============
 
-* Pen pressure: working
+* Pen pressure: working (pressure magnified by pen tool button. Usage: Ignore the right click response, maintain the button pressed, and continue to draw with magnified pressure sensitivity.)
 * Pen tracking: working
 * Keys: produce numbers like a numeric keypad
 * Scroll wheels: produce 'a', 'b', 'c', 'd' like a keyboard
+* Removed fuzz factor from driver when reporting absolute position x & y. This is not a joystick and we should have negligable jitter on the reported position.
+* Added delay before pressure reports when tool is presented for the first time.
+	This prevents abberations being drawn as the pen position initially settles. It is configurable and defaults to 230mS. 
 
 **Tested programs**
 
@@ -82,6 +87,8 @@ TODO
 1. Make the pen driver load automatically when the tablet is plugged in  <-- done (until we find a nicer solution)
 2. Write another or configure USBHID driver to allow remapping of keys and scroll wheels
 3. Try to get the driver updated in the kernel tree so no installation is required in future
+4. Understand and improve the mapping of the rubber tool, to a working software interface. Krita etc ?
+5. Consider implementing fuzz factor for the position reports when eraser tool is presented. The eraser tool currently reports with a great deal of jitter. (Hardware)
 
 Diagnostics
 ===========

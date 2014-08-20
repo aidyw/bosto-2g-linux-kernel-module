@@ -124,8 +124,7 @@ static const int hw_btnevents[] = {
 	BTN_STYLUS 		seems to be the same as a center mouse button above the roll wheel.
  	BTN_STYLUS2		right mouse button (Gedit)
  	BTN_DIGI		seems to do nothing in relation to the stylus tool 
-	BTN_TOUCH		seems like a left mouse click, but all hell
-				breaks loose depending on the application.
+	BTN_TOUCH		left mouse click, or pen contact with the tablet surface. Remains asserted whenever the pen has contact..
 */
 		
 	BTN_DIGI, BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_BRUSH, BTN_TOOL_RUBBER, BTN_TOOL_PENCIL, BTN_TOOL_AIRBRUSH, BTN_TOOL_FINGER, BTN_TOOL_MOUSE
@@ -212,7 +211,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			x = (data[2] << 8) | data[3];		// Set x ABS
 			y = (data[4] << 8) | data[5];		// Set y ABS
 			p = 0;
-			//dev_dbg(&dev->dev, "PEN FLOAT: ABS_PRESSURE [6]:[7]  %s:%s   p = %d\n", byte_to_binary(data[6]), byte_to_binary(data[7]), p );
+			dev_dbg(&dev->dev, "PEN FLOAT: ABS_PRESSURE [6]:[7]  %s:%s   p = %d\n", byte_to_binary(data[6]), byte_to_binary(data[7]), p );
 
 			 switch (hanwang->current_tool) {
 			case BTN_TOOL_BRUSH:
@@ -273,14 +272,15 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			x = (data[2] << 8) | data[3];		/* Set x ABS */
 			y = (data[4] << 8) | data[5];		/* Set y ABS */
 
-			/* Set 2048 Level pressure sensitivity. NOTE: The stylus button, magnifies the pressure sensitivity */
+			/* Set 2048 Level pressure sensitivity. 						NOTE: 	The pen button magnifies the pressure sensitivity. Bring the pen in with the button pressed,
+																					Ignore the right click response and keep the button held down. Enjoy the pressure magnification. */
 			if (jiffies > stamp ) {
 				p = (data[6] << 3) | ((data[7] & 0xc0) >> 5);
 			}
 			else {
 				p = 0;
 			}
-			//dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
+			dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
 			switch (data[1]) {
 				case 0xe0 ... 0xe1:
 					input_report_key(input_dev, BTN_STYLUS2, 0);
@@ -294,7 +294,8 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 		break;
 		
 	case 0x0c:
-		/* Tablet Event as defined in hanvon driver. */
+		/* Tablet Event as defined in hanvon driver.							I think code to handle buttons on the tablet should be placed here. Not 100% sure of the packet encoding.
+		 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	Perhaps 0x0c is not relevant for Bosto 2nd Gen chipset. My 22HD has no buttons. So can't confirm. */
 		dev_dbg(&dev->dev,"Tablet Event. Packet data[0]: %02x\n", data[0] );
 		input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 		input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);
