@@ -21,13 +21,16 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  */
-
+#include <linux/jiffies.h>
+#include <linux/stat.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/usb/input.h>
+#include <linux/fcntl.h>
+#include <linux/unistd.h>
 
 #define DRIVER_AUTHOR   "Aidan Walton <aidan@wires3.net>"
 #define DRIVER_DESC     "USB Bosto(2nd Gen) tablet driver"
@@ -48,6 +51,8 @@ MODULE_LICENSE(DRIVER_LICENSE);
 #define HANWANG_TABLET_INT_PROTOCOL	0x0002
 
 #define PKGLEN_MAX	10
+
+#define PEN_WRITE_DELAY		230		// Delay between TOOL_IN event and first reported pressure > 0. (mS) Used to supress settle time for pen ABS positions.
 
 /* device IDs */
 #define STYLUS_DEVICE_ID	0x02
@@ -133,14 +138,16 @@ static const int hw_mscevents[] = {
 
 static void hanwang_parse_packet(struct hanwang *hanwang)
 {
+
 	unsigned char *data = hanwang->data;
 	struct input_dev *input_dev = hanwang->dev;
 	struct usb_device *dev = hanwang->usbdev;
+	struct input_event ev_ts;
 	u16 x;
 	u16 y;
 	u16 p = 0;
-	//x = hanwang->ABS_X;
-	
+	static unsigned long stamp;
+
 	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 
@@ -165,6 +172,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			
 		/* first time tool prox in */
 		case 0xc2:	
+			stamp = jiffies + PEN_WRITE_DELAY * HZ / 1000; // Time stamp the 'TOOL IN' event and add delay.
 			dev_dbg(&dev->dev, "TOOL IN: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool);
 			dev_dbg(&dev->dev, "Bosto packet:TOOL IN  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
@@ -263,10 +271,14 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			input_report_key(input_dev, BTN_TOUCH, 1);
 			x = (data[2] << 8) | data[3];		/* Set x ABS */
 			y = (data[4] << 8) | data[5];		/* Set y ABS */
-				
-			/* Set 2048 Level pressure sensitivity. NOTE: The stylus button, magnifies the pressure sensitivity */
-			p = (data[6] << 3) | ((data[7] & 0xc0) >> 5);		
 
+			/* Set 2048 Level pressure sensitivity. NOTE: The stylus button, magnifies the pressure sensitivity */
+			if (jiffies > stamp ) {
+				p = (data[6] << 3) | ((data[7] & 0xc0) >> 5);
+			}
+			else {
+				p = 0;
+			}
 			//dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
 			switch (data[1]) {
 				case 0xe0 ... 0xe1:
@@ -291,7 +303,6 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 		dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
 		break;
 	}
-	
 	input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
 	input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
 	input_report_abs(input_dev, ABS_TILT_X, 0x00);
