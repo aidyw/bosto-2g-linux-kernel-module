@@ -21,13 +21,16 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  */
-
+#include <linux/jiffies.h>
+#include <linux/stat.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/usb/input.h>
+#include <linux/fcntl.h>
+#include <linux/unistd.h>
 
 #define DRIVER_AUTHOR   "Aidan Walton <aidan@wires3.net>"
 #define DRIVER_DESC     "USB Bosto(2nd Gen) tablet driver"
@@ -48,6 +51,8 @@ MODULE_LICENSE(DRIVER_LICENSE);
 #define HANWANG_TABLET_INT_PROTOCOL	0x0002
 
 #define PKGLEN_MAX	10
+
+#define PEN_WRITE_DELAY		230		// Delay between TOOL_IN event and first reported pressure > 0. (mS) Used to supress settle time for pen ABS positions.
 
 /* device IDs */
 #define STYLUS_DEVICE_ID	0x02
@@ -104,10 +109,6 @@ static const struct hanwang_features features_array[] = {
 		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
 	{ USB_PRODUCT_BOSTO14WA, "Bosto Kingtee 14WA", HANWANG_BOSTO_14WA,
 		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
-	{ USB_PRODUCT_ART_MASTER_III, "Hanwang Art Master III 1308", HANWANG_ART_MASTER_III,
-		PKGLEN_MAX, 0x7f00, 0x4f60, 0x3f, 0x7f, 2048 },
-	{ USB_PRODUCT_ART_MASTER_HD, "Hanwang Art Master HD 5012", HANWANG_ART_MASTER_HD,
-		PKGLEN_MAX, 0x678e, 0x4150, 0x3f, 0x7f, 1024 },
 };
 
 static const int hw_eventtypes[] = {
@@ -136,13 +137,16 @@ static const int hw_mscevents[] = {
 
 static void hanwang_parse_packet(struct hanwang *hanwang)
 {
+
 	unsigned char *data = hanwang->data;
 	struct input_dev *input_dev = hanwang->dev;
 	struct usb_device *dev = hanwang->usbdev;
-	u16 x = 0;
-	u16 y = 0;
+	struct input_event ev_ts;
+	u16 x;
+	u16 y;
 	u16 p = 0;
-	
+	static unsigned long stamp;
+
 	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 
@@ -167,6 +171,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			
 		/* first time tool prox in */
 		case 0xc2:	
+			stamp = jiffies + PEN_WRITE_DELAY * HZ / 1000; // Time stamp the 'TOOL IN' event and add delay.
 			dev_dbg(&dev->dev, "TOOL IN: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool);
 			dev_dbg(&dev->dev, "Bosto packet:TOOL IN  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
@@ -200,13 +205,29 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			
 		/* Pen trackable but not in contact with screen */
 		case 0xa0 ... 0xa3:
-			dev_dbg(&dev->dev, "PEN FLOATING ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
+			dev_dbg(&dev->dev, "PEN FLOAT: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
 			dev_dbg(&dev->dev, "Bosto packet:Float  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 				
 			x = (data[2] << 8) | data[3];		// Set x ABS
 			y = (data[4] << 8) | data[5];		// Set y ABS
 			p = 0;
+			//dev_dbg(&dev->dev, "PEN FLOAT: ABS_PRESSURE [6]:[7]  %s:%s   p = %d\n", byte_to_binary(data[6]), byte_to_binary(data[7]), p );
+
+			 switch (hanwang->current_tool) {
+			case BTN_TOOL_BRUSH:
+				input_report_key(input_dev, BTN_TOOL_PEN, 0);
+				input_report_key(input_dev, BTN_TOOL_RUBBER, 0);
+				break;
+			case BTN_TOOL_PEN:
+				input_report_key(input_dev, BTN_TOOL_BRUSH, 0);
+				input_report_key(input_dev, BTN_TOOL_RUBBER, 0);
+				break;
+			case BTN_TOOL_RUBBER:
+				input_report_key(input_dev, BTN_TOOL_PEN, 0);
+				input_report_key(input_dev, BTN_TOOL_BRUSH, 0);
+				break;
+			}
 
 			input_report_key(input_dev, hanwang->current_tool, 1);
 			input_report_key(input_dev, BTN_TOUCH, 0);
@@ -232,14 +253,34 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			dev_dbg(&dev->dev, "Bosto packet:Touch  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 
+			switch (hanwang->current_tool) {
+			case BTN_TOOL_BRUSH:
+				input_report_key(input_dev, BTN_TOOL_PEN, 0);
+				input_report_key(input_dev, BTN_TOOL_RUBBER, 0);
+				break;
+			case BTN_TOOL_PEN:
+				input_report_key(input_dev, BTN_TOOL_BRUSH, 0);
+				input_report_key(input_dev, BTN_TOOL_RUBBER, 0);
+				break;
+			case BTN_TOOL_RUBBER:
+				input_report_key(input_dev, BTN_TOOL_PEN, 0);
+				input_report_key(input_dev, BTN_TOOL_BRUSH, 0);
+				break;
+			}
+
 			input_report_key(input_dev, hanwang->current_tool, 1);
 			input_report_key(input_dev, BTN_TOUCH, 1);
 			x = (data[2] << 8) | data[3];		/* Set x ABS */
 			y = (data[4] << 8) | data[5];		/* Set y ABS */
-				
-			/* Set 2048 Level pressure sensitivity. NOTE: The stylus button, magnifies the pressure sensitivity */
-			p = (data[6] << 3) | ((data[7] & 0xc0) >> 5) | (data[1] & 0x01);				
 
+			/* Set 2048 Level pressure sensitivity. NOTE: The stylus button, magnifies the pressure sensitivity */
+			if (jiffies > stamp ) {
+				p = (data[6] << 3) | ((data[7] & 0xc0) >> 5);
+			}
+			else {
+				p = 0;
+			}
+			//dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
 			switch (data[1]) {
 				case 0xe0 ... 0xe1:
 					input_report_key(input_dev, BTN_STYLUS2, 0);
@@ -263,10 +304,9 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 		dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
 		break;
 	}
-	
 	input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
 	input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
-	input_report_abs(input_dev, ABS_PRESSURE, le16_to_cpup((__le16 *)&p));
+	input_report_abs(input_dev, ABS_PRESSURE, p ); //le16_to_cpup((__le16 *)&p));
 	input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 	input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);		
 		
@@ -402,9 +442,9 @@ static int hanwang_probe(struct usb_interface *intf, const struct usb_device_id 
 		__set_bit(hw_mscevents[i], input_dev->mscbit);
 
 	input_set_abs_params(input_dev, ABS_X,
-			     0, hanwang->features->max_x, 4, 0);
+			     0, hanwang->features->max_x, 0, 0);
 	input_set_abs_params(input_dev, ABS_Y,
-			     0, hanwang->features->max_y, 4, 0);
+			     0, hanwang->features->max_y, 0, 0);
 	input_set_abs_params(input_dev, ABS_PRESSURE,
 			     0, hanwang->features->max_pressure, 0, 0);
 
