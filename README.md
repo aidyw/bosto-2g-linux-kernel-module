@@ -1,12 +1,8 @@
 This is a Linux driver for the 2nd generation Bosto Kingtee 22HD and Bosto Kingtee 14WA tablets.
-These tablets were released around November 2013 and featured a Hanwang/Hanvon digitiser superior
-to the earlier tablet versions, but that broke the Wacom compatibility that previously allowed
-these tablets to work directly in Linux.
+These tablets were released around November 2013.
 
-Fortunately it was discovered that there was a driver for an older Hanwang tablet already in
-the kernel source and with a few modifications that driver will work for the newer Kingtee's.
 Using this driver requires some manual work but is definitely possible right now. We are
-working to get the drivers to a point where using the tablets under Linux will be automatic
+working to get the drivers to a point where using these tablets under Linux will be automatic
 and convenient.
 
 Multiple drivers
