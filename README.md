@@ -61,7 +61,7 @@ Installation
 **Build and install the driver**
 
 ```bash
-sudo apt-get install build-essential linux-headers-generic git     # install requirements
+sudo apt-get install libusb-1.0.0-dev build-essential linux-headers-generic git     # install requirements
 cd ~
 git clone https://github.com/aidyw/bosto-2g-linux-kernel-module.git
 cd bosto-2g-linux-kernel-module
@@ -80,7 +80,7 @@ The "master" branch is the default and should be the right choice for the offici
 TODO
 ====
 
-1. Make the pen driver load automatically when the tablet is plugged in  <-- done (until we find a nicer solution)
+1. Make the pen driver load automatically when the tablet is plugged in  <-- done (22HD now uses usblib based userspace code to detach the generic kernel module. 14WA using unbind. The master branch using libusb.)
 2. Write another or configure USBHID driver to allow remapping of keys and scroll wheels
 3. Try to get the driver updated in the kernel tree so no installation is required in future
 4. Understand and improve the mapping of the rubber tool, to a working software interface. Krita etc ?
