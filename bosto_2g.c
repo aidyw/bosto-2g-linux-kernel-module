@@ -105,10 +105,10 @@ struct hanwang_features {
 };
 
 static const struct hanwang_features features_array[] = {
-	{ USB_PRODUCT_BOSTO22HD, "Hanwang Art Master III 0906", HANWANG_BOSTO_22HD,
-		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
+	{ USB_PRODUCT_BOSTO22HD, "Bosto Kingtee 22HD", HANWANG_BOSTO_22HD,
+		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 0x0800 },
 	{ USB_PRODUCT_BOSTO14WA, "Bosto Kingtee 14WA", HANWANG_BOSTO_14WA,
-		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 2048 },
+		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 0x0800 },
 };
 
 static const int hw_eventtypes[] = {
@@ -140,12 +140,13 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	unsigned char *data = hanwang->data;
 	struct input_dev *input_dev = hanwang->dev;
 	struct usb_device *dev = hanwang->usbdev;
-	struct input_event ev_ts;
-	u16 x;
-	u16 y;
+	// struct input_event ev_ts;
+	u16 x = 0;
+	u16 y = 0;
 	u16 p = 0;
 	static unsigned long stamp;
 
+	//dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] 00:01:02:03:04:05:06:07:08:09%x\n");
 	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 
@@ -211,7 +212,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			x = (data[2] << 8) | data[3];		// Set x ABS
 			y = (data[4] << 8) | data[5];		// Set y ABS
 			p = 0;
-			dev_dbg(&dev->dev, "PEN FLOAT: ABS_PRESSURE [6]:[7]  %s:%s   p = %d\n", byte_to_binary(data[6]), byte_to_binary(data[7]), p );
+			// dev_dbg(&dev->dev, "PEN FLOAT: ABS_PRESSURE [6]:[7]  %s:%s   p = %d\n", byte_to_binary(data[6]), byte_to_binary(data[7]), p );
 
 			 switch (hanwang->current_tool) {
 			case BTN_TOOL_BRUSH:
@@ -249,8 +250,9 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			 * In either case the byte value jitters between a pair of either of the two states dependent on the button press. */
 
 			dev_dbg(&dev->dev, "PEN TOUCH: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
-			dev_dbg(&dev->dev, "Bosto packet:Touch  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
-					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+			//dev_dbg(&dev->dev, "Bosto packet:Touch  [B0:-:B8] 00:01:02:03:04:05:06:07:08:09%x\n");
+			//dev_dbg(&dev->dev, "Bosto packet:Touch  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
+					//data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9], "\n");
 
 			switch (hanwang->current_tool) {
 			case BTN_TOOL_BRUSH:
@@ -271,16 +273,17 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			input_report_key(input_dev, BTN_TOUCH, 1);
 			x = (data[2] << 8) | data[3];		/* Set x ABS */
 			y = (data[4] << 8) | data[5];		/* Set y ABS */
-
 			/* Set 2048 Level pressure sensitivity. 						NOTE: 	The pen button magnifies the pressure sensitivity. Bring the pen in with the button pressed,
 																					Ignore the right click response and keep the button held down. Enjoy the pressure magnification. */
 			if (jiffies > stamp ) {
-				p = (data[6] << 3) | ((data[7] & 0xc0) >> 5);
+				//p = (data[6] << 3) | ((data[7] & 0xc0) >> 5);
+				p = (data[7] >> 6) | (data[6] << 2);
+				p = le16_to_cpup((__le16 *)&p);
 			}
 			else {
 				p = 0;
 			}
-			dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
+			//dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
 			switch (data[1]) {
 				case 0xe0 ... 0xe1:
 					input_report_key(input_dev, BTN_STYLUS2, 0);
@@ -305,9 +308,12 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 		dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
 		break;
 	}
+	if (x > hanwang->features->max_x) {x = hanwang->features->max_x;}
+	if (y > hanwang->features->max_y) {y = hanwang->features->max_y;}
+	if (p > hanwang->features->max_pressure) {p = hanwang->features->max_pressure;}
 	input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
 	input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
-	input_report_abs(input_dev, ABS_PRESSURE, p ); //le16_to_cpup((__le16 *)&p));
+	input_report_abs(input_dev, ABS_PRESSURE, p);
 	input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 	input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);		
 		
