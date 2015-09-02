@@ -23,8 +23,8 @@ Current Status
 * Keys: produce numbers like a numeric keypad
 * Scroll wheels: produce 'a', 'b', 'c', 'd' like a keyboard
 * Removed fuzz factor from driver when reporting absolute position x & y. This is not a joystick and we should have negligable jitter on the reported position.
-* Added delay before pressure reports when tool is presented for the first time.
-	This prevents abberations being drawn as the pen position initially settles. It is configurable and defaults to 230mS. 
+* ~~Added delay before pressure reports when tool is presented for the first time.~~
+* Added conditional for origin 0,0, and don't report. This prevents lines drawn to the absolute origin when pen first in or when stylus button presses during contact. We loose one pixel. I'm not loosing any sleep. 
 
 **Tested programs**
 
