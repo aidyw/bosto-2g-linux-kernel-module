@@ -52,8 +52,6 @@ MODULE_LICENSE(DRIVER_LICENSE);
 
 #define PKGLEN_MAX	10
 
-#define PEN_WRITE_DELAY		230		// Delay between TOOL_IN event and first reported pressure > 0. (mS) Used to supress settle time for pen ABS positions.
-
 /* device IDs */
 #define STYLUS_DEVICE_ID	0x02
 #define TOUCH_DEVICE_ID		0x03
@@ -144,7 +142,6 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	u16 x = 0;
 	u16 y = 0;
 	u16 p = 0;
-	static unsigned long stamp;
 
 	//dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] 00:01:02:03:04:05:06:07:08:09%x\n");
 	dev_dbg(&dev->dev, "Bosto packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
@@ -171,7 +168,6 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			
 		/* first time tool prox in */
 		case 0xc2:	
-			stamp = jiffies + PEN_WRITE_DELAY * HZ / 1000; // Time stamp the 'TOOL IN' event and add delay.
 			dev_dbg(&dev->dev, "TOOL IN: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool);
 			dev_dbg(&dev->dev, "Bosto packet:TOOL IN  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
@@ -273,17 +269,11 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			input_report_key(input_dev, BTN_TOUCH, 1);
 			x = (data[2] << 8) | data[3];		/* Set x ABS */
 			y = (data[4] << 8) | data[5];		/* Set y ABS */
-			/* Set 2048 Level pressure sensitivity. 						NOTE: 	The pen button magnifies the pressure sensitivity. Bring the pen in with the button pressed,
-																					Ignore the right click response and keep the button held down. Enjoy the pressure magnification. */
-			if (jiffies > stamp ) {
-				//p = (data[6] << 3) | ((data[7] & 0xc0) >> 5);
-				p = (data[7] >> 6) | (data[6] << 2);
-				p = le16_to_cpup((__le16 *)&p);
-			}
-			else {
-				p = 0;
-			}
-			//dev_dbg(&dev->dev, "PEN TOUCH: ABS_PRESSURE [6]: %02x %02x %s %s  p = %d\n", data[6], data[7], p );
+
+			// Set 2048 Level pressure sensitivity. 		
+			p = (data[7] >> 6) | (data[6] << 2);
+			p = le16_to_cpup((__le16 *)&p);
+
 			switch (data[1]) {
 				case 0xe0 ... 0xe1:
 					input_report_key(input_dev, BTN_STYLUS2, 0);
@@ -297,8 +287,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 		break;
 		
 	case 0x0c:
-		/* Tablet Event as defined in hanvon driver.							I think code to handle buttons on the tablet should be placed here. Not 100% sure of the packet encoding.
-		 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	Perhaps 0x0c is not relevant for Bosto 2nd Gen chipset. My 22HD has no buttons. So can't confirm. */
+		/* Tablet Event as defined in hanvon driver. I think code to handle buttons on the tablet should be placed here. Not 100% sure of the packet encoding.		 	 	 	 	 	 Perhaps 0x0c is not relevant for Bosto 2nd Gen chipset. My 22HD has no buttons. So can't confirm. */
 		dev_dbg(&dev->dev,"Tablet Event. Packet data[0]: %02x\n", data[0] );
 		input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 		input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);
@@ -311,8 +300,8 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	if (x > hanwang->features->max_x) {x = hanwang->features->max_x;}
 	if (y > hanwang->features->max_y) {y = hanwang->features->max_y;}
 	if (p > hanwang->features->max_pressure) {p = hanwang->features->max_pressure;}
-	input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
-	input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
+	if (x != 0) {input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));}	// Avoid reporting absolute origin, avoids drawing lines to 0,0 on tool in and button press.
+	if (y != 0) {input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));}
 	input_report_abs(input_dev, ABS_PRESSURE, p);
 	input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 	input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);		
