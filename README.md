@@ -80,7 +80,7 @@ The "master" branch is the default and should be the right choice for the offici
 TODO
 ====
 
-1. Make the pen driver load automatically when the tablet is plugged in  <-- done (22HD now uses usblib based userspace code to detach the generic kernel module. 14WA using unbind. The master branch using libusb.)
+1. Make the pen driver load automatically when the tablet is plugged in  <-- done (22HD (master branch) now uses usblib based userspace code to detach the generic kernel module. 14WA using unbind.)
 2. Write another or configure USBHID driver to allow remapping of keys and scroll wheels
 3. Try to get the driver updated in the kernel tree so no installation is required in future
 4. Understand and improve the mapping of the rubber tool, to a working software interface. Krita etc ?
