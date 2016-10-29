@@ -24,7 +24,7 @@ Current Status
 * Scroll wheels: produce 'a', 'b', 'c', 'd' like a keyboard
 * Removed fuzz factor from driver when reporting absolute position x & y. This is not a joystick and we should have negligable jitter on the reported position.
 * ~~Added delay before pressure reports when tool is presented for the first time.~~
-* Added conditional for origin 0,0, and don't report. This prevents lines drawn to the absolute origin when pen first in or when stylus button presses during contact. We loose one pixel. I'm not loosing any sleep. 
+* Added conditional for origin 0,0, and don't report. This prevents lines drawn to the absolute origin when pen first in or when stylus button presses during contact. We loose one pixel. I'm not loosing any sleep.
 
 **Tested programs**
 
@@ -36,7 +36,7 @@ Tracking and pressure sensitivity working on:
 * Synfig 0.64.1
 * Krita 2.9 pre-alpha (3 August 2014)
 
-In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you might need to map axis 3 to pressure (but that's usually the default). 
+In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you might need to map axis 3 to pressure (but that's usually the default).
 
 * Krita 2.7.2 has tracking but it's unknown right now whether pressure works.
 * Krita 2.8.1 doesn't seem to work at all.
@@ -47,7 +47,7 @@ In each program, you will need to find the "Input Devices" configuration and sel
 The installation has been tested on Ubuntu 13.10 and Ubuntu 14.04. Please let us know your experiences on other distributions.
 
 
-In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you might need to map axis 3 to pressure (but that's usually the default). 
+In each program, you will need to find the "Input Devices" configuration and select the Bosto (change 'disabled' to 'screen') and you might need to map axis 3 to pressure (but that's usually the default).
 
 Krita 2.8.1 doesn't seem to work properly, though a newer version is known to work. We're looking into it.
 
@@ -104,6 +104,13 @@ echo -n 'format "PEN_IN" -p' > <debugfs>/control
 Another possibility based on per line number in the source file.
 (See https://www.kernel.org/doc/Documentation/dynamic-debug-howto.txt )
 echo -n 'file ./<path to source>/bosto_2g.ko line 230 +p' > <debugfs>/control
+
+Known Issues
+============
+
+The Bosto 22HD (v1) Shipped with a firware issue. If the USB port is detached and the re-attached, the data coming from the tablet becomes corrupted when pressure exceeds a certain level.
+To resolve the issue it is necessary to power cycle the tablet totally, removing both power input and USB cable, in some cases even a DVI connector.
+The tablet will remain internally powered from any available source.
 
 Feedback
 ========
