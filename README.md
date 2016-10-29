@@ -95,11 +95,15 @@ After running modprobe, check if the module was loaded properly with dmesg.
 lsmod should also contain `bosto_2g` in its listing: lsmod | grep bosto_2g
 
 Debug ouput now pattern matched to entries in the /sys/kernel/debug/dynamic_debug/control file
+
+
 For example to see each time the driver detects a PEN_IN event, echo the following:
 
-echo -n 'format "PEN_IN" +p' > <debugfs>/control
-and off again
-echo -n 'format "PEN_IN" -p' > <debugfs>/control
+echo -n 'format "PEN_IN" +p' > /sys/kernel/debug/dynamic_debug/control
+
+Then view the debug output in syslog. To switch debug output off again:
+
+echo -n 'format "PEN_IN" -p' > /sys/kernel/debug/dynamic_debug/control
 
 Another possibility based on per line number in the source file.
 (See https://www.kernel.org/doc/Documentation/dynamic-debug-howto.txt )
