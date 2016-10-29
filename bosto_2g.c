@@ -73,7 +73,7 @@ MODULE_LICENSE(DRIVER_LICENSE);
 enum hanwang_tablet_type {
 	HANWANG_BOSTO_22HD,
 	HANWANG_BOSTO_14WA,
-	HANWANG_ART_MASTER_III, 
+	HANWANG_ART_MASTER_III,
 	HANWANG_ART_MASTER_HD,
 };
 
@@ -104,7 +104,7 @@ struct hanwang_features {
 
 static const struct hanwang_features features_array[] = {
 	{ USB_PRODUCT_BOSTO22HD, "Bosto Kingtee 22HD", HANWANG_BOSTO_22HD,
-		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 0x0800 },
+		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 0x0400 },
 	{ USB_PRODUCT_BOSTO14WA, "Bosto Kingtee 14WA", HANWANG_BOSTO_14WA,
 		PKGLEN_MAX, 0x27de, 0x1cfe, 0x3f, 0x7f, 0x0800 },
 };
@@ -121,10 +121,10 @@ static const int hw_btnevents[] = {
 /*
 	BTN_STYLUS 		seems to be the same as a center mouse button above the roll wheel.
  	BTN_STYLUS2		right mouse button (Gedit)
- 	BTN_DIGI		seems to do nothing in relation to the stylus tool 
+ 	BTN_DIGI		seems to do nothing in relation to the stylus tool
 	BTN_TOUCH		left mouse click, or pen contact with the tablet surface. Remains asserted whenever the pen has contact..
 */
-		
+
 	BTN_DIGI, BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_BRUSH, BTN_TOOL_RUBBER, BTN_TOOL_PENCIL, BTN_TOOL_AIRBRUSH, BTN_TOOL_FINGER, BTN_TOOL_MOUSE
 };
 
@@ -148,15 +148,15 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 
 	switch (data[0]) {
-		
+
 	/* pen event */
 	case 0x02:
-		//printk (KERN_DEBUG "Pen Event Packet\n" );		
+		//printk (KERN_DEBUG "Pen Event Packet\n" );
 		/* Pen Event as defined in hanvon driver. */
 		switch (data[1]) {
-			
+
 		/* tool prox out */
-		case 0x80:	
+		case 0x80:
 			hanwang->current_id = 0;
 			hanwang->current_tool = 0;
 			input_report_key(input_dev, hanwang->current_tool, 0);
@@ -165,15 +165,15 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			dev_dbg(&dev->dev, "Bosto packet:TOOL OUT  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
 			break;
-			
+
 		/* first time tool prox in */
-		case 0xc2:	
+		case 0xc2:
 			dev_dbg(&dev->dev, "TOOL IN: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool);
 			dev_dbg(&dev->dev, "Bosto packet:TOOL IN  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
-				
+
 			switch (data[3] & 0xf0) {
-			
+
 			/* Stylus Tip in prox. Bosto 22HD */
 			case 0x20:
 				hanwang->current_id = STYLUS_DEVICE_ID;
@@ -182,29 +182,29 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 				input_report_key(input_dev, BTN_TOOL_PEN, 1);
 				dev_dbg(&dev->dev, "TOOL IN:Exit ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
 				break;
-			
+
 			/* Stylus Eraser in prox. Bosto 22HD */
-			case 0xa0: 
+			case 0xa0:
 				hanwang->current_id = ERASER_DEVICE_ID;
 				hanwang->current_tool = BTN_TOOL_RUBBER;
 				input_report_key(input_dev, BTN_TOUCH, 0);
 				input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
 				dev_dbg(&dev->dev, "TOOL IN ERASER:Exit ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool);
 				break;
-		
+
 			default:
 				hanwang->current_id = 0;
 				dev_dbg(&dev->dev, "Unknown tablet tool %02x ", data[0]);
 				break;
 			}
 			break;
-			
+
 		/* Pen trackable but not in contact with screen */
 		case 0xa0 ... 0xa3:
 			dev_dbg(&dev->dev, "PEN FLOAT: ID:Tool %x:%x\n", hanwang->current_id, hanwang->current_tool );
 			dev_dbg(&dev->dev, "Bosto packet:Float  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
 					data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
-				
+
 			x = (data[2] << 8) | data[3];		// Set x ABS
 			y = (data[4] << 8) | data[5];		// Set y ABS
 			p = 0;
@@ -239,9 +239,9 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			break;
 
 		/* Pen contact */
-		case 0xe0 ... 0xe3:		
-								
-			/* All a little strange; these 4 bytes are always seen whenever the pen is in contact with the tablet. 
+		case 0xe0 ... 0xe3:
+
+			/* All a little strange; these 4 bytes are always seen whenever the pen is in contact with the tablet.
 			 * 'e0 + e1', without the stylus button pressed and 'e2 + e3' with the stylus button pressed. Either of the buttons.
 			 * In either case the byte value jitters between a pair of either of the two states dependent on the button press. */
 
@@ -270,7 +270,7 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			x = (data[2] << 8) | data[3];		/* Set x ABS */
 			y = (data[4] << 8) | data[5];		/* Set y ABS */
 
-			// Set 2048 Level pressure sensitivity. 		
+			// Set 2048 Level pressure sensitivity.
 			p = (data[7] >> 6) | (data[6] << 2);
 			p = le16_to_cpup((__le16 *)&p);
 
@@ -285,14 +285,14 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 			break;
 		}
 		break;
-		
+
 	case 0x0c:
 		/* Tablet Event as defined in hanvon driver. I think code to handle buttons on the tablet should be placed here. Not 100% sure of the packet encoding.		 	 	 	 	 	 Perhaps 0x0c is not relevant for Bosto 2nd Gen chipset. My 22HD has no buttons. So can't confirm. */
 		dev_dbg(&dev->dev,"Tablet Event. Packet data[0]: %02x\n", data[0] );
 		input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
 		input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);
 		input_sync(input_dev);
-		
+
 	default:
 		dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
 		break;
@@ -302,10 +302,10 @@ static void hanwang_parse_packet(struct hanwang *hanwang)
 	if (p > hanwang->features->max_pressure) {p = hanwang->features->max_pressure;}
 	if (x != 0) {input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));}	// Avoid reporting absolute origin, avoids drawing lines to 0,0 on tool in and button press.
 	if (y != 0) {input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));}
-	input_report_abs(input_dev, ABS_PRESSURE, p);
 	input_report_abs(input_dev, ABS_MISC, hanwang->current_id);
-	input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);		
-		
+	input_report_abs(input_dev, ABS_PRESSURE, p);
+	input_event(input_dev, EV_MSC, MSC_SERIAL, hanwang->features->pid);
+
 	input_sync(input_dev);
 }
 
