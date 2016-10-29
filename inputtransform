@@ -1,0 +1,221 @@
+#!/usr/bin/env ruby
+
+class UI
+  def self.pick(list, prompt = 'Please select from the list:')
+    puts
+    puts prompt
+    list.compact.each_with_index{|l, i| puts "  [#{i+1}] #{l}"}
+    valid_range = 1..list.length
+    loop do
+      choice = STDIN.gets.strip.to_i
+      return list[choice-1] if valid_range.include?(choice)
+      puts
+      puts "Please enter a number in the range #{valid_range} or press ctrl-c to exit"
+    end
+  end
+end
+
+class Screen
+  attr_reader :id, :minimum, :current, :maximum
+
+  def initialize(screen_line)
+    raise "Cannot parse '#{screen_line}' as Screen line" unless screen_line =~ 
+      /Screen (\d+): minimum (\d+ x \d+), current (\d+ x \d+), maximum (\d+ x \d+)/
+    @id, @minimum, @current, @maximum = $1.to_i, $2, $3, $4
+  end
+end
+
+class Display
+  attr_reader :name, :panning, :orientation, :physical_size
+
+  def initialize(header, lines)
+    if header =~ /^(.*) disconnected/
+      @disconnected = true
+    elsif header =~ /(.*) connected (primary |)(\d+x\d+\+\d+\+\d+) \((.*?)\) (\d+mm x \d+mm)/
+      @disconnected = false
+
+      @name, @primary, @panning, @orientation, @physical_size = $1, $2, $3, $4, $5
+      @primary = !!@primary
+    else
+      raise "Cannot parse '#{header}' as Display header"
+    end
+  end
+
+  def to_s
+    "#{name} at #{panning} (physical size: #{physical_size})"
+  end
+
+  # Returns the numbers from the x, y, x_offset, y_offset string: 1920x1080+1920+0 
+  def panning_variables
+    @panning_variables ||= @panning.split(/\D/).map(&:to_f)
+  end
+
+  def disconnected?
+    @disconnected
+  end
+
+  def connected?
+    !@disconnected
+  end
+end
+
+class Xrandr
+  attr_reader :screens, :displays
+
+  def initialize
+    @xrandr = `xrandr`
+    parse
+  end
+
+  def parse
+    # oh how wonderful if every linux program had a --json or --yaml or something
+    
+    disp_line = nil
+
+    @screens = []
+    @displays = Hash.new{|h, k| h[k] = []}
+    @xrandr.each_line do |l|
+      l.strip!
+      if l =~ /^Screen/
+        @screens << Screen.new(l)
+        disp_line = nil
+      elsif l =~ /^(.*) (dis|)connected/
+        disp_line = l
+      elsif disp_line
+        @displays[disp_line] << displays
+      end
+    end
+
+    @displays = @displays.map{|header, resolutions| Display.new(header, resolutions)}
+    
+    true
+  end
+end
+
+Struct.new("InputDevice", :name, :id, :role, :type, :parent)
+
+class Xinput
+  attr_reader :devices
+  def initialize
+    @xinput = `xinput list --short`
+    parse
+  end
+
+  # Parses xinput lines like this:
+  # Logitech USB Optical Mouse              	id=16	[slave  pointer  (2)]
+  # to name (Logitech USB Optical Mouse), id (16), role (slave), type (pointer), parent (2)
+  def parse
+    @devices = []
+    @xinput.each_line do |l|
+      if l =~ /↳ (.*?)\s+id=(\d+)\s+\[(\w+)\s+(\w+)\s+\((\d+)\).*\]/
+        @devices << Struct::InputDevice.new($1.strip, $2.to_i, $3, $4, $5.to_i)
+      end
+    end
+  end
+end
+
+class InputTransform
+  def initialize(device_name = nil)
+    @xrandr = Xrandr.new
+    @xinput = Xinput.new
+  end
+
+  def xinput_str
+    @input_str ||= 
+      "xinput set-prop '#{device_name}' 'Coordinate Transformation Matrix' #{matrix.join(' ')}"
+  end
+
+  def reset_str
+    @reset_str ||= 
+      "xinput set-prop '#{device_name}' 'Coordinate Transformation Matrix' #{[1, 0, 0, 0, 1, 0, 0, 0, 1].join(' ')}"
+  end
+
+  def matrix
+    @matrix ||= [c0, 0, c1, 0, c2, c3, 0, 0, 1]
+  end
+
+  def c0
+    touch_area_width / total_width
+  end
+
+  def c1
+    touch_area_x_offset / total_width
+  end
+
+  def c2
+    touch_area_height / total_height
+  end
+
+  def c3
+    touch_area_y_offset / total_height
+  end
+
+  def touch_area_width
+    tablet_panning[0]
+  end
+
+  def touch_area_height
+    tablet_panning[1]
+  end
+
+  def total_width
+    current_size[0]
+  end
+
+  def total_height
+    current_size[1]
+  end
+
+  def touch_area_x_offset
+    tablet_panning[2]
+  end
+
+  def touch_area_y_offset
+    tablet_panning[3]
+  end
+
+  def device_name
+    @device_name ||= UI.pick(@xinput.devices.select{|d| d.type == 'pointer'}.map(&:name), 'Please select the stylus device:')
+  end
+
+  def tablet_display
+    @tablet_display ||= UI.pick(@xrandr.displays, 'Please select the tablet monitor:')
+  end
+
+  private
+  
+  def current_size
+    @current_size ||= @xrandr.screens.first.current.split('x').map(&:to_f)
+  end
+
+  def tablet_panning
+    @tablet_panning ||= tablet_display.panning_variables
+  end
+end
+
+if $0 == __FILE__
+  it = InputTransform.new
+
+  unless ARGV[0] == '--reset'
+    puts
+    puts "This program constrains a pointer to a screen. Use --reset to undo this."
+    puts "Press ctrl-c at any time to cancel."
+    puts
+
+    run = it.xinput_str
+    #puts "Running the following command:"
+    #puts run
+    `#{run}`
+
+    puts
+    puts "To undo this operation, run #{$0} --reset"
+    puts
+  else
+    run = it.reset_str
+    puts "Resetting pointer back to normal!"
+    #puts "Running the following command:"
+    #puts run
+    `#{run}`
+    puts
+  end
+end
