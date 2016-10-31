@@ -70,6 +70,7 @@ MODULE_LICENSE(DRIVER_LICENSE);
         .bInterfaceSubClass = (sc), \
         .bInterfaceProtocol = (pr)
 
+
 enum bosto_2g_tablet_type {
 	HANWANG_BOSTO_22HD,
 	HANWANG_BOSTO_14WA,
@@ -147,7 +148,6 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9], jiffies);
 
 	switch (data[0]) {
-
 	/* pen event */
 	case 0x02:
 		switch (data[1]) {
@@ -159,7 +159,10 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
                 bosto_2g->current_tool = 0;
                 bosto_2g->tool_update = 1;
                 bosto_2g->idle_cnt = 0;
-                input_report_key(input_dev, BTN_TOUCH, 0);
+                input_report_key(input_dev, BTN_TOUCH, 0);			// Release all the buttons on tool out
+                input_report_key(input_dev, BTN_TOOL_PEN, 0);
+                input_report_key(input_dev, BTN_TOOL_RUBBER, 0);
+                input_report_key(input_dev, BTN_STYLUS, 0);
                 dev_dbg(&dev->dev, "Bosto TOOL OUT");
 			}
             ++bosto_2g->idle_cnt;
@@ -203,55 +206,35 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 			}
 			break;
 
-		/* Stylus hovering */
+		/* Stylus in proximity */
 		case 0xa0 ... 0xa3:
-			bosto_2g->idle_cnt = 0;
-			dev_dbg(&dev->dev, "Bosto_Proximity");
-
-			x = (data[2] << 8) | data[3];		// Set x ABS
-			y = (data[4] << 8) | data[5];		// Set y ABS
-			p = 0;
-
-			input_report_key(input_dev, BTN_TOUCH, 0);
-
-			switch (data[1]) {
-				case 0xa0 ... 0xa1:
-					input_report_key(input_dev, BTN_STYLUS, 0);
-					break;
-				case 0xa2 ... 0xa3:
-					input_report_key(input_dev, BTN_STYLUS, 1);
-					break;
-			}
-			break;
-
-		/* Pen contact */
 		case 0xe0 ... 0xe3:
 			bosto_2g->idle_cnt = 0;
-			dev_dbg(&dev->dev, "PEN TOUCH");
+			x = (data[2] << 8) | data[3];		// Set x ABS
+			y = (data[4] << 8) | data[5];		// Set y ABS
 
-			input_report_key(input_dev, BTN_TOUCH, 1);
-			x = (data[2] << 8) | data[3];		/* Set x ABS */
-			y = (data[4] << 8) | data[5];		/* Set y ABS */
+			if((data[1] & 0xF0) == 0xe0) {
+				dev_dbg(&dev->dev, "Bosto TOOL: TOUCH");
+				input_report_key(input_dev, BTN_TOUCH, 1);
+				p = (data[7] >> 5) | (data[6] << 3) | (data[1] & 0x1);		// Set 2048 Level pressure sensitivity.
+				p = le16_to_cpup((__le16 *)&p);
+			} else {
+				dev_dbg(&dev->dev, "Bosto TOOL: FLOAT");
+				p = 0;
+				input_report_key(input_dev, BTN_TOUCH, 0);
+			}
 
-			// Set 2048 Level pressure sensitivity.
-			p = (data[7] >> 5) | (data[6] << 3) | (data[1] & 0x1);
-			p = le16_to_cpup((__le16 *)&p);
-
-			switch (data[1]) {
-				case 0xe0 ... 0xe1:
-					input_report_key(input_dev, BTN_STYLUS, 0);
-					break;
-				case 0xe2 ... 0xe3:
-					input_report_key(input_dev, BTN_STYLUS, 1);
-					break;
+			if ((data[1] >> 1) & 1) input_report_key(input_dev, BTN_STYLUS, 1);
+			else input_report_key(input_dev, BTN_STYLUS, 0);
 			}
 			break;
-		}
-		break;
 
 	case 0x0c:
 		bosto_2g->idle_cnt = 0;
-		/* Tablet Event as defined in hanvon driver. I think code to handle buttons on the tablet should be placed here. Not 100% sure of the packet encoding.		 	 	 	 	 	 Perhaps 0x0c is not relevant for Bosto 2nd Gen chipset. My 22HD has no buttons. So can't confirm. */
+		dev_dbg(&dev->dev, "Bosto BUTTON: Tablet button pressed");
+		// Tablet Event as defined in hanvon driver. I think code to handle buttons on the tablet should be placed here. Not 100% sure of the packet encoding.
+		// 0x0c is not relevant for Bosto 2nd Gen chipset. My 22HD has no buttons. So can't confirm.
+		break;
 
 	default:
 		dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
