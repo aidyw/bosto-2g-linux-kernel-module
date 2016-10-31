@@ -78,6 +78,18 @@ enum bosto_2g_tablet_type {
 	HANWANG_ART_MASTER_HD,
 };
 
+static const int hw_btnevents[] = {
+/*
+	BTN_STYLUS 		seems to be the same as a center mouse button above the roll wheel.
+ 	BTN_STYLUS2		right mouse button (Gedit)
+ 	BTN_DIGI		seems to do nothing in relation to the stylus tool
+	BTN_TOUCH		left mouse click, or pen contact with the tablet surface. Remains asserted whenever the pen has contact..
+*/
+
+	//BTN_DIGI, BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_BRUSH, BTN_TOOL_RUBBER, BTN_TOOL_PENCIL, BTN_TOOL_AIRBRUSH, BTN_TOOL_FINGER, BTN_TOOL_MOUSE
+	BTN_TOUCH, BTN_TOOL_PEN, BTN_TOOL_RUBBER, BTN_STYLUS
+};
+
 struct bosto_2g {
 	unsigned char *data;
 	dma_addr_t data_dma;
@@ -88,7 +100,8 @@ struct bosto_2g {
 	unsigned int current_tool;
 	unsigned int current_id;
 	unsigned int tool_update;
-	unsigned int idle_cnt;
+	bool stylus_btn_state;
+	bool stylus_prox;
 	char name[64];
 	char phys[32];
 };
@@ -118,17 +131,8 @@ static const int hw_absevents[] = {
 	ABS_X, ABS_Y, ABS_PRESSURE, ABS_MISC
 };
 
-static const int hw_btnevents[] = {
-/*
-	BTN_STYLUS 		seems to be the same as a center mouse button above the roll wheel.
- 	BTN_STYLUS2		right mouse button (Gedit)
- 	BTN_DIGI		seems to do nothing in relation to the stylus tool
-	BTN_TOUCH		left mouse click, or pen contact with the tablet surface. Remains asserted whenever the pen has contact..
-*/
 
-	//BTN_DIGI, BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_BRUSH, BTN_TOOL_RUBBER, BTN_TOOL_PENCIL, BTN_TOOL_AIRBRUSH, BTN_TOOL_FINGER, BTN_TOOL_MOUSE
-	BTN_TOUCH, BTN_TOOL_PEN, BTN_TOOL_RUBBER, BTN_STYLUS
-};
+
 
 static const int hw_mscevents[] = {
 	MSC_SERIAL,
@@ -143,103 +147,114 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 	static u16 x = 0;
 	static u16 y = 0;
 	static u16 p = 0;
+	unsigned int pkt_type = 0x00;		// Default undefined
+	if(data[1] == 0x80) pkt_type = 1;	// Idle or tool status update in next few packets
+	if(data[1] == 0xC2) pkt_type = 2;	// tool status update packet
+	if(((data[1] & 0xF0) == 0xA0) | ((data[1] & 0xF0) == 0xE0)) pkt_type = 3;	// In proximity float 0xA0  or touch 0xE0
+
 
 	dev_dbg(&dev->dev, "Bosto_packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x Time:%li\n",
 			data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9], jiffies);
 
 	switch (data[0]) {
 	/* pen event */
-	case 0x02:
-		switch (data[1]) {
+		case 0x02:
+			switch (pkt_type) {
 
-		/* tool prox out */
-		case 0x80:
-            if(bosto_2g->idle_cnt > 2) {		// Three 0x80 indicates stylus out of proximity
-                bosto_2g->current_id = 0;
-                bosto_2g->current_tool = 0;
-                bosto_2g->tool_update = 1;
-                bosto_2g->idle_cnt = 0;
-                input_report_key(input_dev, BTN_TOUCH, 0);			// Release all the buttons on tool out
-                input_report_key(input_dev, BTN_TOOL_PEN, 0);
-                input_report_key(input_dev, BTN_TOOL_RUBBER, 0);
-                input_report_key(input_dev, BTN_STYLUS, 0);
-                dev_dbg(&dev->dev, "Bosto TOOL OUT");
-			}
-            ++bosto_2g->idle_cnt;
-			break;
+			/* tool prox out */
+			case 1:
 
-		// button event
-		case 0xc2:
-			bosto_2g->idle_cnt = 0;
-			dev_dbg(&dev->dev, "Bosto TOOL UPDATE");
-			switch (data[3] & 0xf0) {
+				bosto_2g->stylus_btn_state = false;
+				if( bosto_2g->stylus_prox) {		// Three 0x80 indicates stylus out of proximity
+					// Release all the buttons on tool out
+					input_report_key(input_dev, BTN_STYLUS, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_STYLUS released");
+					input_report_key(input_dev, BTN_TOUCH, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOUCH released");
+					input_report_key(input_dev, BTN_TOOL_PEN, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOOL_PEN released");
+					input_report_key(input_dev, BTN_TOOL_RUBBER, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOOL_RUBBER released");
 
-				// Stylus Tip in prox. Bosto 22HD
-				case 0x20:
-					if((bosto_2g->current_id == ERASER_DEVICE_ID) | (bosto_2g->current_id == 0)) {
-						bosto_2g->current_id = STYLUS_DEVICE_ID;
-						bosto_2g->current_tool = BTN_TOOL_PEN;
-						bosto_2g->tool_update = 1;
-						input_report_key(input_dev, BTN_TOOL_PEN, 1);
-						dev_dbg(&dev->dev, "Bosto TOOL ID: STYLUS");
-						dev_dbg(&dev->dev, "Bosto BUTTON: PEN pressed");
-					}
-
-					break;
-
-				/* Stylus Eraser in prox. Bosto 22HD */
-				case 0xa0:
-					if((bosto_2g->current_id == STYLUS_DEVICE_ID) | (bosto_2g->current_id == 0)){
-						bosto_2g->current_id = ERASER_DEVICE_ID;
-						bosto_2g->current_tool = BTN_TOOL_RUBBER;
-						bosto_2g->tool_update = 1;
-						input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
-						dev_dbg(&dev->dev, "Bosto TOOL ID: ERASER");
-						dev_dbg(&dev->dev, "Bosto BUTTON: RUBBER pressed");
-					}
-					break;
-
-				default:
 					bosto_2g->current_id = 0;
-					dev_dbg(&dev->dev, "Unknown tablet tool %02x ", data[0]);
-					break;
+					bosto_2g->current_tool = 0;
+					bosto_2g->tool_update = 1;
+					bosto_2g->stylus_prox = false;
+					dev_dbg(&dev->dev, "Bosto TOOL OUT");
+				}
+				break;
+
+			// button event
+			case 2:
+				bosto_2g->stylus_prox = true;
+				dev_dbg(&dev->dev, "Bosto TOOL UPDATE");
+				switch (data[3] & 0xf0) {
+					// Stylus Tip in prox. Bosto 22HD
+					case 0x20:
+						if((bosto_2g->current_id == ERASER_DEVICE_ID) | (bosto_2g->current_id == 0)) {
+							bosto_2g->current_id = STYLUS_DEVICE_ID;
+							bosto_2g->current_tool = BTN_TOOL_PEN;
+							bosto_2g->tool_update = 1;
+							input_report_key(input_dev, BTN_TOOL_PEN, 1);
+							dev_dbg(&dev->dev, "Bosto TOOL ID: STYLUS");
+							dev_dbg(&dev->dev, "Bosto BUTTON: PEN pressed");
+						}
+						break;
+
+					/* Stylus Eraser in prox. Bosto 22HD */
+					case 0xa0:
+						if((bosto_2g->current_id == STYLUS_DEVICE_ID) | (bosto_2g->current_id == 0)){
+							bosto_2g->current_id = ERASER_DEVICE_ID;
+							bosto_2g->current_tool = BTN_TOOL_RUBBER;
+							bosto_2g->tool_update = 1;
+							input_report_key(input_dev, BTN_TOOL_RUBBER, 1); dev_dbg(&dev->dev, "Bosto TOOL ID: ERASER"); dev_dbg(&dev->dev, "Bosto BUTTON: RUBBER pressed");
+						}
+						break;
+
+					default:
+						bosto_2g->current_id = 0; dev_dbg(&dev->dev, "Unknown tablet tool %02x ", data[0]);
+				}
+				break;
+
+			/* Stylus in proximity */
+			case 3:
+				bosto_2g->stylus_prox = true;
+				x = (data[2] << 8) | data[3];		// Set x ABS
+				y = (data[4] << 8) | data[5];		// Set y ABS
+				if((data[1] & 0xF0) == 0xE0){
+					input_report_key(input_dev, BTN_TOUCH, 1); dev_dbg(&dev->dev, "Bosto TOOL: TOUCH");
+					p = (data[7] >> 5) | (data[6] << 3) | (data[1] & 0x1);		// Set 2048 Level pressure sensitivity.
+					p = le16_to_cpup((__le16 *)&p);
+				} else {
+					p = 0;
+					input_report_key(input_dev, BTN_TOUCH, 0); dev_dbg(&dev->dev, "Bosto TOOL: FLOAT");
+				}
+				if ((data[1] >> 1) & 1) {
+					if (!bosto_2g->stylus_btn_state) {
+						input_report_key(input_dev, BTN_STYLUS, 1);
+						bosto_2g->stylus_btn_state = true;
+						dev_dbg(&dev->dev, "Bosto BUTTON: BTN_STYLUS pressed");
+					}
+				}
+				else if (bosto_2g->stylus_btn_state){
+					input_report_key(input_dev, BTN_STYLUS, 0);
+					bosto_2g->stylus_btn_state = false;
+					dev_dbg(&dev->dev, "Bosto BUTTON: BTN_STYLUS released");
+				}
+				break;
+
+			default:
+				dev_dbg(&dev->dev, "Error packet. Packet data[1]:  %02x ", data[1]);
 			}
-			break;
+        break;
 
-		/* Stylus in proximity */
-		case 0xa0 ... 0xa3:
-		case 0xe0 ... 0xe3:
-			bosto_2g->idle_cnt = 0;
-			x = (data[2] << 8) | data[3];		// Set x ABS
-			y = (data[4] << 8) | data[5];		// Set y ABS
 
-			if((data[1] & 0xF0) == 0xe0) {
-				dev_dbg(&dev->dev, "Bosto TOOL: TOUCH");
-				input_report_key(input_dev, BTN_TOUCH, 1);
-				p = (data[7] >> 5) | (data[6] << 3) | (data[1] & 0x1);		// Set 2048 Level pressure sensitivity.
-				p = le16_to_cpup((__le16 *)&p);
-			} else {
-				dev_dbg(&dev->dev, "Bosto TOOL: FLOAT");
-				p = 0;
-				input_report_key(input_dev, BTN_TOUCH, 0);
-			}
+        case 0x0c:
+            dev_dbg(&dev->dev, "Bosto BUTTON: Tablet button pressed");
+            // Tablet Event as defined in hanvon driver. I think code to handle buttons on the tablet should be placed here. Not 100% sure of the packet encoding.
+            // 0x0c is not relevant for Bosto 2nd Gen chipset. My 22HD has no buttons. So can't confirm.
+            break;
 
-			if ((data[1] >> 1) & 1) input_report_key(input_dev, BTN_STYLUS, 1);
-			else input_report_key(input_dev, BTN_STYLUS, 0);
-			}
-			break;
-
-	case 0x0c:
-		bosto_2g->idle_cnt = 0;
-		dev_dbg(&dev->dev, "Bosto BUTTON: Tablet button pressed");
-		// Tablet Event as defined in hanvon driver. I think code to handle buttons on the tablet should be placed here. Not 100% sure of the packet encoding.
-		// 0x0c is not relevant for Bosto 2nd Gen chipset. My 22HD has no buttons. So can't confirm.
-		break;
-
-	default:
-		dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
-		break;
+        default:
+            dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
 	}
+
 	if (x > bosto_2g->features->max_x) {x = bosto_2g->features->max_x;}
 	if (y > bosto_2g->features->max_y) {y = bosto_2g->features->max_y;}
 	if (p > bosto_2g->features->max_pressure) {p = bosto_2g->features->max_pressure;}
