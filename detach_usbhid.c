@@ -11,7 +11,7 @@ int main() {
 
 	r = libusb_init(0); //initialize a library session
 
-	
+
 	 /* Get the first device with the matching Vendor ID and Product ID. If
 	   * intending to allow multiple devices, you
 	   * might need to use libusb_get_device_list() instead. Refer to the libusb
