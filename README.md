@@ -99,11 +99,13 @@ Debug ouput now pattern matched to entries in the /sys/kernel/debug/dynamic_debu
 
 For example to see each time the driver detects a PEN_IN event, echo the following:
 
-echo -n 'format "PEN_IN" +p' > /sys/kernel/debug/dynamic_debug/control
+echo -n 'format "Bosto TOOL" +p' > /sys/kernel/debug/dynamic_debug/control
 
 Then view the debug output in syslog. To switch debug output off again:
 
-echo -n 'format "PEN_IN" -p' > /sys/kernel/debug/dynamic_debug/control
+echo -n 'format "Bosto TOOL" -p' > /sys/kernel/debug/dynamic_debug/control
+
+check the 'dev_dbg' lines in bosto_2g.c for other debug pattern matches that are possible.
 
 Another possibility based on per line number in the source file.
 (See https://www.kernel.org/doc/Documentation/dynamic-debug-howto.txt )
