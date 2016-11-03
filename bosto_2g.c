@@ -260,9 +260,9 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
             dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
 	}
 
-	//if (x > bosto_2g->features->max_x) {x = bosto_2g->features->max_x;}
-	//if (y > bosto_2g->features->max_y) {y = bosto_2g->features->max_y;}
-	//if (p > bosto_2g->features->max_pressure) {p = bosto_2g->features->max_pressure;}
+	if (x > bosto_2g->features->max_x) {x = bosto_2g->features->max_x;}
+	if (y > bosto_2g->features->max_y) {y = bosto_2g->features->max_y;}
+	if (p > bosto_2g->features->max_pressure) {p = bosto_2g->features->max_pressure;}
 	if(bosto_2g->tool_update == 0) {
 		input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
 		input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
