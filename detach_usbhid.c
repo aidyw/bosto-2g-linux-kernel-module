@@ -1,6 +1,9 @@
 //#include <iostream>
+//#include <sys/types.h>
 #include <libusb.h>
 #include <stdio.h>
+//#include <linux/types.h>
+//#include <linux/usbhid.h>
 
 
 int main() {
@@ -8,6 +11,8 @@ int main() {
 	libusb_device_handle* handle = 0;  /* handle for USB device */
 	int kernelDriverDetached     = 0;  /* Set to 1 if kernel driver detached */
 	int r; //for return values
+
+//	usbhid_modify_dquirk(0x0b57, 0x9016, 0x4);
 
 	r = libusb_init(0); //initialize a library session
 

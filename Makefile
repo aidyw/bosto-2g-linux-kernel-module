@@ -1,5 +1,5 @@
 CC=gcc
-INC=-I/usr/include/libusb-1.0
+INC=-I/usr/include/libusb-1.0 
 LIB=-L/lib/$(arch)-linux-gnu/libusb-1.0.so.0
 
 .PHONY: all clean archive

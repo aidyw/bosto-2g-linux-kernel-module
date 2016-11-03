@@ -87,7 +87,7 @@ static const int hw_btnevents[] = {
 */
 
 	//BTN_DIGI, BTN_TOUCH, BTN_STYLUS, BTN_STYLUS2, BTN_TOOL_PEN, BTN_TOOL_BRUSH, BTN_TOOL_RUBBER, BTN_TOOL_PENCIL, BTN_TOOL_AIRBRUSH, BTN_TOOL_FINGER, BTN_TOOL_MOUSE
-	BTN_TOUCH, BTN_TOOL_PEN, BTN_TOOL_RUBBER, BTN_STYLUS
+	BTN_TOUCH, BTN_TOOL_PEN, BTN_TOOL_RUBBER, BTN_STYLUS, BTN_STYLUS2
 };
 
 struct bosto_2g {
@@ -102,6 +102,7 @@ struct bosto_2g {
 	unsigned int tool_update;
 	bool stylus_btn_state;
 	bool stylus_prox;
+	bool report;
 	char name[64];
 	char phys[32];
 };
@@ -118,9 +119,9 @@ struct bosto_2g_features {
 
 static const struct bosto_2g_features features_array[] = {
 	{ USB_PRODUCT_BOSTO22HD, "Bosto Kingtee 22HD", HANWANG_BOSTO_22HD,
-		PKGLEN_MAX, 0x27de, 0x1cfe, 0x0800 },
+		PKGLEN_MAX, 0x27de, 0x1cfe, 0x07FF },
 	{ USB_PRODUCT_BOSTO14WA, "Bosto Kingtee 14WA", HANWANG_BOSTO_14WA,
-		PKGLEN_MAX, 0x27de, 0x1cfe, 0x0800 },
+		PKGLEN_MAX, 0x27de, 0x1cfe, 0x07FF },
 };
 
 static const int hw_eventtypes[] = {
@@ -128,7 +129,7 @@ static const int hw_eventtypes[] = {
 };
 
 static const int hw_absevents[] = {
-	ABS_X, ABS_Y, ABS_PRESSURE, ABS_MISC
+	ABS_PRESSURE, ABS_X, ABS_Y, ABS_MISC
 };
 
 
@@ -163,7 +164,6 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 
 			/* tool prox out */
 			case 1:
-
 				bosto_2g->stylus_btn_state = false;
 				if( bosto_2g->stylus_prox) {		// Three 0x80 indicates stylus out of proximity
 					// Release all the buttons on tool out
@@ -171,11 +171,14 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 					input_report_key(input_dev, BTN_TOUCH, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOUCH released");
 					input_report_key(input_dev, BTN_TOOL_PEN, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOOL_PEN released");
 					input_report_key(input_dev, BTN_TOOL_RUBBER, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOOL_RUBBER released");
-
+					input_report_abs(input_dev, ABS_MISC, bosto_2g->current_id);
+					input_event(input_dev, EV_MSC, MSC_SERIAL, bosto_2g->features->pid);
+					input_sync(input_dev);
 					bosto_2g->current_id = 0;
-					bosto_2g->current_tool = 0;
+					//bosto_2g->current_tool = 0;
 					bosto_2g->tool_update = 1;
 					bosto_2g->stylus_prox = false;
+					bosto_2g->report = false;
 					dev_dbg(&dev->dev, "Bosto TOOL OUT");
 				}
 				break;
@@ -210,6 +213,7 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 					default:
 						bosto_2g->current_id = 0; dev_dbg(&dev->dev, "Unknown tablet tool %02x ", data[0]);
 				}
+				bosto_2g->report = true;
 				break;
 
 			/* Stylus in proximity */
@@ -221,8 +225,9 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 					input_report_key(input_dev, BTN_TOUCH, 1); dev_dbg(&dev->dev, "Bosto TOOL: TOUCH");
 					p = (data[7] >> 5) | (data[6] << 3) | (data[1] & 0x1);		// Set 2048 Level pressure sensitivity.
 					p = le16_to_cpup((__le16 *)&p);
+					p = 0x7FF;
 				} else {
-					p = 0;
+					p = 0x7ff;
 					input_report_key(input_dev, BTN_TOUCH, 0); dev_dbg(&dev->dev, "Bosto TOOL: FLOAT");
 				}
 				if ((data[1] >> 1) & 1) {
@@ -238,9 +243,10 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 					dev_dbg(&dev->dev, "Bosto BUTTON: BTN_STYLUS released");
 				}
 				break;
-
+				bosto_2g->report = true;
 			default:
 				dev_dbg(&dev->dev, "Error packet. Packet data[1]:  %02x ", data[1]);
+				bosto_2g->report = false;
 			}
         break;
 
@@ -259,13 +265,18 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 	if (y > bosto_2g->features->max_y) {y = bosto_2g->features->max_y;}
 	if (p > bosto_2g->features->max_pressure) {p = bosto_2g->features->max_pressure;}
 	if(bosto_2g->tool_update == 0) {
-	input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
-	input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
-	input_report_abs(input_dev, ABS_PRESSURE, p);
+		input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
+		input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
+		input_report_abs(input_dev, ABS_PRESSURE, le16_to_cpup((__le16 *)&p));
+		dev_dbg(&dev->dev, "Bosto ABS_X:  %02x ", x);
+		dev_dbg(&dev->dev, "Bosto ABS_Y:  %02x ", y);
+		dev_dbg(&dev->dev, "Bosto ABS_PRESSURE:  %02x ", p);
 	}
-	input_report_abs(input_dev, ABS_MISC, bosto_2g->current_id);
-	input_event(input_dev, EV_MSC, MSC_SERIAL, bosto_2g->features->pid);
-	input_sync(input_dev);
+	if(bosto_2g->report == true){
+		input_report_abs(input_dev, ABS_MISC, bosto_2g->current_id);
+		input_event(input_dev, EV_MSC, MSC_SERIAL, bosto_2g->features->pid);
+		input_sync(input_dev);
+	}
 	bosto_2g->tool_update = 0;
 }
 
@@ -291,9 +302,12 @@ static void bosto_2g_irq(struct urb *urb)
 		//dev_err(&dev->dev, "%s - urb shutting down with status: %d",
 		//	__func__, urb->status);
 		return;
+	case -ENODEV:
+		//dev_err(&dev->dev, "%s - Device removed. urb status: %d",
+			//__func__, urb->status);
 	default:
-		dev_err(&dev->dev, "%s - nonzero urb status received: %d",
-			__func__, urb->status);
+		//dev_err(&dev->dev, "%s - nonzero urb status received: %d",
+			//__func__, urb->status);
 		break;
 	}
 
@@ -311,7 +325,8 @@ static int bosto_2g_open(struct input_dev *dev)
 	if (usb_submit_urb(bosto_2g->irq, GFP_KERNEL))
 		return -EIO;
 
-	/* printk(KERN_INFO "in bosto_2g open.\n" ); */
+	//dev_err(&dev->dev, "%s - Opening Bosto urb.",
+		//__func__);
 	return 0;
 }
 
@@ -319,6 +334,8 @@ static void bosto_2g_close(struct input_dev *dev)
 {
 	struct bosto_2g *bosto_2g = input_get_drvdata(dev);
 
+	dev_err(&dev->dev, "%s - Closing Bosto urb.",
+		__func__);
 	usb_kill_urb(bosto_2g->irq);
 }
 
@@ -345,6 +362,7 @@ static int bosto_2g_probe(struct usb_interface *intf, const struct usb_device_id
 	struct input_dev *input_dev;
 	int error;
 	int i;
+	
 
 	printk (KERN_INFO "Bosto_Probe checking Tablet.\n");
 	bosto_2g = kzalloc(sizeof(struct bosto_2g), GFP_KERNEL);
@@ -429,6 +447,7 @@ static int bosto_2g_probe(struct usb_interface *intf, const struct usb_device_id
 			bosto_2g->data, bosto_2g->data_dma);
  fail1:	input_free_device(input_dev);
 	kfree(bosto_2g);
+	printk (KERN_INFO "Requesting kernel to free Bosto urb.\n");
 	return error;
 
 }
@@ -437,6 +456,7 @@ static void bosto_2g_disconnect(struct usb_interface *intf)
 {
 	struct bosto_2g *bosto_2g = usb_get_intfdata(intf);
 
+	printk (KERN_INFO "bosto_2g: USB interface disconnected.\n");
 	input_unregister_device(bosto_2g->dev);
 	usb_free_urb(bosto_2g->irq);
 	usb_free_coherent(interface_to_usbdev(intf),
