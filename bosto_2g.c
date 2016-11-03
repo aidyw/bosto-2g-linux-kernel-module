@@ -118,9 +118,9 @@ struct bosto_2g_features {
 
 static const struct bosto_2g_features features_array[] = {
 	{ USB_PRODUCT_BOSTO22HD, "Bosto Kingtee 22HD", HANWANG_BOSTO_22HD,
-		PKGLEN_MAX, 0x27de, 0x1cfe, 0x0800 },
+		PKGLEN_MAX, 0x27de, 0x1cfe, 0x07FF },
 	{ USB_PRODUCT_BOSTO14WA, "Bosto Kingtee 14WA", HANWANG_BOSTO_14WA,
-		PKGLEN_MAX, 0x27de, 0x1cfe, 0x0800 },
+		PKGLEN_MAX, 0x27de, 0x1cfe, 0x07FF },
 };
 
 static const int hw_eventtypes[] = {
