@@ -99,7 +99,7 @@ struct bosto_2g {
 	const struct bosto_2g_features *features;
 	unsigned int current_tool;
 	unsigned int current_id;
-	unsigned int tool_update;
+	bool tool_update;
 	bool stylus_btn_state;
 	bool stylus_prox;
 	bool report;
@@ -119,9 +119,10 @@ struct bosto_2g_features {
 	int max_pressure;
 };
 
+//PKGLEN_MAX, (0x27de*2), 0x15, (0x1cfe*2), 0x1B, 0x07FF },
 static const struct bosto_2g_features features_array[] = {
 	{ USB_PRODUCT_BOSTO22HD, "Bosto Kingtee 22HD", HANWANG_BOSTO_22HD,
-		PKGLEN_MAX, 0x27de, 0x15, 0x1cfe, 0x1B, 0x07FF },
+		PKGLEN_MAX, 0x9f78, 0x56, 0x73f8, 0x6e, 0x07FF },					// Max values scale up by 4 to get resultion accurate
 	{ USB_PRODUCT_BOSTO14WA, "Bosto Kingtee 14WA", HANWANG_BOSTO_14WA,
 		PKGLEN_MAX, 0x27de, 0x1cfe, 0x07FF },
 };
@@ -173,15 +174,19 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 					input_report_key(input_dev, BTN_TOUCH, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOUCH released");
 					input_report_key(input_dev, BTN_TOOL_PEN, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOOL_PEN released");
 					input_report_key(input_dev, BTN_TOOL_RUBBER, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOOL_RUBBER released");
-					input_report_abs(input_dev, ABS_MISC, bosto_2g->current_id);
-					input_event(input_dev, EV_MSC, MSC_SERIAL, bosto_2g->features->pid);
-					input_sync(input_dev);
+					//input_report_abs(input_dev, ABS_MISC, bosto_2g->current_id);
+					//input_event(input_dev, EV_MSC, MSC_SERIAL, bosto_2g->features->pid);
+					//input_sync(input_dev);
 					bosto_2g->current_id = 0;
 					//bosto_2g->current_tool = 0;
-					bosto_2g->tool_update = 1;
+					bosto_2g->tool_update = false;
 					bosto_2g->stylus_prox = false;
-					bosto_2g->report = false;
+					bosto_2g->report = true;
 					dev_dbg(&dev->dev, "Bosto TOOL OUT");
+				}
+				else {
+					bosto_2g->tool_update = false;
+					bosto_2g->report = false;
 				}
 				break;
 
@@ -195,7 +200,6 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 						if((bosto_2g->current_id == ERASER_DEVICE_ID) | (bosto_2g->current_id == 0)) {
 							bosto_2g->current_id = STYLUS_DEVICE_ID;
 							bosto_2g->current_tool = BTN_TOOL_PEN;
-							bosto_2g->tool_update = 1;
 							input_report_key(input_dev, BTN_TOOL_PEN, 1);
 							dev_dbg(&dev->dev, "Bosto TOOL ID: STYLUS");
 							dev_dbg(&dev->dev, "Bosto BUTTON: PEN pressed");
@@ -207,8 +211,9 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 						if((bosto_2g->current_id == STYLUS_DEVICE_ID) | (bosto_2g->current_id == 0)){
 							bosto_2g->current_id = ERASER_DEVICE_ID;
 							bosto_2g->current_tool = BTN_TOOL_RUBBER;
-							bosto_2g->tool_update = 1;
-							input_report_key(input_dev, BTN_TOOL_RUBBER, 1); dev_dbg(&dev->dev, "Bosto TOOL ID: ERASER"); dev_dbg(&dev->dev, "Bosto BUTTON: RUBBER pressed");
+							input_report_key(input_dev, BTN_TOOL_RUBBER, 1);
+							dev_dbg(&dev->dev, "Bosto TOOL ID: ERASER");
+							dev_dbg(&dev->dev, "Bosto BUTTON: RUBBER pressed");
 						}
 						break;
 
@@ -221,12 +226,32 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 			/* Stylus in proximity */
 			case 3:
 				bosto_2g->stylus_prox = true;
-				x = (data[2] << 8) | data[3];		// Set x ABS
-				y = (data[4] << 8) | data[5];		// Set y ABS
+				// Its up for debate, but IMHO I think we should release the tool button after pressing it.
+				// Implementation I suppose. However Device_ID has been changed and considering how most software works. i.e Choose your tool, then draw
+				// Clicking on the tool toggles it, you dont need to hold it down.
+				// GIMP & Krita works this way. Mypaint does not.. I comment out for now. But seems no consensus.
+				/*
+				switch(bosto_2g->current_id){
+					case ERASER_DEVICE_ID:
+						//input_report_key(input_dev, BTN_TOOL_RUBBER, 0);
+						dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOOL_RUBBER released");
+						break;
+					case STYLUS_DEVICE_ID:
+						//input_report_key(input_dev, BTN_TOOL_PEN, 0);
+						dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOOL_PEN released");
+						break;
+					default:
+						dev_dbg(&dev->dev, "Bosto Unkown Tool Defined");
+				}
+				*/
+				x = ((data[2] << 8) | data[3]) << 2;		// Set x ABS	Left shift to match scaling in paramaters passed to kernel
+				x = le16_to_cpup((__le16 *)&x);
+				y = ((data[4] << 8) | data[5]) << 2;		// Set y ABS	Left shift to match scaling in paramaters passed to kernel
+				y = le16_to_cpup((__le16 *)&y);
 				if((data[1] & 0xF0) == 0xE0){
 					input_report_key(input_dev, BTN_TOUCH, 1); dev_dbg(&dev->dev, "Bosto TOOL: TOUCH");
-					p = (data[7] >> 5) | (data[6] << 3) | (data[1] & 0x1);		// Set 2048 Level pressure sensitivity.
-					p = le16_to_cpup((__le16 *)&p);
+					p = (data[7] >> 5) | (data[6] << 3) | (data[1] & 0x1);		// Set 2048 Level pressure sensitivity. 
+					//p = le16_to_cpup((__le16 *)&p);
 				} else {
 					p = 0;
 					input_report_key(input_dev, BTN_TOUCH, 0); dev_dbg(&dev->dev, "Bosto TOOL: FLOAT");
@@ -243,8 +268,10 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 					bosto_2g->stylus_btn_state = false;
 					dev_dbg(&dev->dev, "Bosto BUTTON: BTN_STYLUS released");
 				}
-				break;
 				bosto_2g->report = true;
+				bosto_2g->tool_update = true;
+				break;
+
 			default:
 				dev_dbg(&dev->dev, "Error packet. Packet data[1]:  %02x ", data[1]);
 				bosto_2g->report = false;
@@ -262,12 +289,12 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
             dev_dbg(&dev->dev, "Error packet. Packet data[0]:  %02x ", data[0]);
 	}
 
-	if (x > bosto_2g->features->max_x) {x = bosto_2g->features->max_x;}
+	//if (x > bosto_2g->features->max_x) {x = bosto_2g->features->max_x;}
 	if (y > bosto_2g->features->max_y) {y = bosto_2g->features->max_y;}
 	if (p > bosto_2g->features->max_pressure) {p = bosto_2g->features->max_pressure;}
-	if(bosto_2g->tool_update == 0) {
-		input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
-		input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
+	if(bosto_2g->tool_update) {
+		input_report_abs(input_dev, ABS_X, x);
+		input_report_abs(input_dev, ABS_Y, y);
 		input_report_abs(input_dev, ABS_PRESSURE, p);
 		dev_dbg(&dev->dev, "Bosto ABS_X:  %02x ", x);
 		dev_dbg(&dev->dev, "Bosto ABS_Y:  %02x ", y);
@@ -275,10 +302,14 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 	}
 	if(bosto_2g->report == true){
 		input_report_abs(input_dev, ABS_MISC, bosto_2g->current_id);
+		dev_dbg(&dev->dev, "Bosto ABS_MISC:  %02x ", bosto_2g->current_id);
 		input_event(input_dev, EV_MSC, MSC_SERIAL, bosto_2g->features->pid);
+		dev_dbg(&dev->dev, "Bosto MSC_SERIAL:  %02x ", bosto_2g->features->pid);
 		input_sync(input_dev);
+		dev_dbg(&dev->dev, "Bosto EV_SYNC.");
+		
 	}
-	bosto_2g->tool_update = 0;
+	bosto_2g->tool_update = false;
 }
 
 static void bosto_2g_irq(struct urb *urb)
@@ -346,6 +377,10 @@ static bool get_features(struct usb_device *dev, struct bosto_2g *bosto_2g)
 
 	for (i = 0; i < ARRAY_SIZE(features_array); i++) {
 		if (le16_to_cpu(dev->descriptor.idProduct) == features_array[i].pid) {
+			printk (KERN_INFO "Found Bosto Product Type: %s.\n", features_array[i].name);
+			printk (KERN_INFO "Found Bosto MAX_X: %i.\n", features_array[i].max_x);
+			printk (KERN_INFO "Found Bosto MAX_Y: %i.\n", features_array[i].max_y);
+			printk (KERN_INFO "Found Bosto MAX_PRESSURE: %i.\n", features_array[i].max_pressure);
 			bosto_2g->features = &features_array[i];
 			return true;
 		}
