@@ -113,13 +113,15 @@ struct bosto_2g_features {
 	enum bosto_2g_tablet_type type;
 	int pkg_len;
 	int max_x;
+	int res_x;
 	int max_y;
+	int res_y;
 	int max_pressure;
 };
 
 static const struct bosto_2g_features features_array[] = {
 	{ USB_PRODUCT_BOSTO22HD, "Bosto Kingtee 22HD", HANWANG_BOSTO_22HD,
-		PKGLEN_MAX, 0x27de, 0x1cfe, 0x07FF },
+		PKGLEN_MAX, 0x27de, 0x15, 0x1cfe, 0x1B, 0x07FF },
 	{ USB_PRODUCT_BOSTO14WA, "Bosto Kingtee 14WA", HANWANG_BOSTO_14WA,
 		PKGLEN_MAX, 0x27de, 0x1cfe, 0x07FF },
 };
@@ -129,7 +131,7 @@ static const int hw_eventtypes[] = {
 };
 
 static const int hw_absevents[] = {
-	ABS_PRESSURE, ABS_X, ABS_Y, ABS_MISC
+	ABS_X, ABS_Y, ABS_PRESSURE, ABS_MISC,
 };
 
 
@@ -266,7 +268,7 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 	if(bosto_2g->tool_update == 0) {
 		input_report_abs(input_dev, ABS_X, le16_to_cpup((__le16 *)&x));
 		input_report_abs(input_dev, ABS_Y, le16_to_cpup((__le16 *)&y));
-		input_report_abs(input_dev, ABS_PRESSURE, le16_to_cpup((__le16 *)&p));
+		input_report_abs(input_dev, ABS_PRESSURE, p);
 		dev_dbg(&dev->dev, "Bosto ABS_X:  %02x ", x);
 		dev_dbg(&dev->dev, "Bosto ABS_Y:  %02x ", y);
 		dev_dbg(&dev->dev, "Bosto ABS_PRESSURE:  %02x ", p);
@@ -420,10 +422,12 @@ static int bosto_2g_probe(struct usb_interface *intf, const struct usb_device_id
 
 	input_set_abs_params(input_dev, ABS_X,
 			     0, bosto_2g->features->max_x, 0, 0);
+	input_abs_set_res(input_dev, ABS_X, bosto_2g->features->res_x);	
 	input_set_abs_params(input_dev, ABS_Y,
 			     0, bosto_2g->features->max_y, 0, 0);
+	input_abs_set_res(input_dev, ABS_Y, bosto_2g->features->res_y);
 	input_set_abs_params(input_dev, ABS_PRESSURE,
-			     0, bosto_2g->features->max_pressure, 0, 0);
+			     0, bosto_2g->features->max_pressure, 0, 0);		 
 
 	endpoint = &intf->cur_altsetting->endpoint[0].desc;
 	usb_fill_int_urb(bosto_2g->irq, dev,

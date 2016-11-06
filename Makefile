@@ -18,7 +18,7 @@ archive:
 	tar f - --exclude=.git -C ../ -c bosto_2g | gzip -c9 > ../bosto_2g-`date +%Y%m%d`.tgz
 
 install:
-	cp ./bosto_2g.ko /lib/modules/$(shell uname -r)
+	cp ./bosto_2g.ko /lib/modules/$(shell uname -r)/kernel/drivers/input/tablet/
 	echo bosto_2g >> /etc/modules
 	depmod
 	cp ./load_bosto_2g.sh /usr/local/bin
@@ -32,7 +32,7 @@ uninstall:
 	rm /usr/local/bin/detach_usbhid
 	rm /etc/udev/rules.d/load_bosto_2g.rules
 	/sbin/udevadm control --reload
-	rm /lib/modules/$(shell uname -r)/bosto_2g.ko
+	rm /lib/modules/$(shell uname -r)/kernel/drivers/input/tablet/bosto_2g.ko
 	sed -i '/bosto_2g/d' /etc/modules
 	depmod
 	rmmod bosto_2g
