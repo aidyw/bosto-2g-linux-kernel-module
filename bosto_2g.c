@@ -31,6 +31,7 @@
 #include <linux/usb/input.h>
 #include <linux/fcntl.h>
 #include <linux/unistd.h>
+#include <linux/usb.h>
 
 #define DRIVER_AUTHOR   "Aidan Walton <aidan@wires3.net>"
 #define DRIVER_DESC     "USB Bosto(2nd Gen) tablet driver"
@@ -51,6 +52,10 @@ MODULE_LICENSE(DRIVER_LICENSE);
 #define BOSTO_TABLET_INT_PROTOCOL	0x0002
 
 #define PKGLEN_MAX	10
+
+
+
+#define TOOL_OUT_DETECT 600			// Time in mS to determine tool is out of proximity.
 
 /* device IDs */
 #define STYLUS_DEVICE_ID	0x02
@@ -90,11 +95,47 @@ static const int hw_btnevents[] = {
 	BTN_TOUCH, BTN_TOOL_PEN, BTN_TOOL_RUBBER, BTN_STYLUS, BTN_STYLUS2
 };
 
+struct usb_ctrl_bosto_2g {
+	dma_addr_t ctrl_data_dma;
+	struct urb *ctrl;
+	unsigned char *ctrl_data;
+};
+struct urb *ctrl_urb;
+
+struct setup_packet {
+	//vv Do not re-order this part of the structure
+	uint8_t bmRequestType;
+	uint8_t bRequest;
+	uint16_t wValue;
+	uint16_t wIndex;
+	uint16_t wLength;
+	//^^ Do not re-order this part of the structure
+};
+static const struct setup_packet ctrl_setup_packet = {
+	 // Get Device Description
+	 /*
+	(uint8_t)0x80,
+	(uint8_t)0x06,
+	le16_to_cpu((0x01 << 8) | (0x00)),
+	le16_to_cpu(0x0000),//(u16)(bosto_2g->endpoint->bEndpointAddress),
+	le16_to_cpu(0x0012),//0x0012;
+	*/
+	// Set Feature Endpoint Halt
+	(uint8_t)0x02,
+	(uint8_t)0x03,			//bRequest Set Feature
+	le16_to_cpu(0x0000), //wValue0x0000 = Endpoint Halt 0x0002 Test Mode
+	le16_to_cpu(0xFF81), // Endpoint 81
+	le16_to_cpu(0x0000),//Length
+	
+};
+
 struct bosto_2g {
 	unsigned char *data;
 	dma_addr_t data_dma;
 	struct input_dev *dev;
+	struct usb_interface *intf;
 	struct usb_device *usbdev;
+	struct usb_endpoint_descriptor *endpoint;
 	struct urb *irq;
 	const struct bosto_2g_features *features;
 	unsigned int current_tool;
@@ -103,6 +144,7 @@ struct bosto_2g {
 	bool stylus_btn_state;
 	bool stylus_prox;
 	bool report;
+	unsigned int last_ts;
 	char name[64];
 	char phys[32];
 };
@@ -142,19 +184,30 @@ static const int hw_mscevents[] = {
 	MSC_SERIAL,
 };
 
+bool ctrl_idle = true;
+
 static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 {
 
 	unsigned char *data = bosto_2g->data;
+	unsigned int current_ts = jiffies;		// Time Stamp ever packet.
 	struct input_dev *input_dev = bosto_2g->dev;
 	struct usb_device *dev = bosto_2g->usbdev;
 	static u16 x = 0;
 	static u16 y = 0;
 	static u16 p = 0;
 	unsigned int pkt_type = 0x00;		// Default undefined
+	
+	
 	if(data[1] == 0x80) pkt_type = 1;	// Idle or tool status update in next few packets
-	if(data[1] == 0xC2) pkt_type = 2;	// tool status update packet
-	if(((data[1] & 0xF0) == 0xA0) | ((data[1] & 0xF0) == 0xE0)) pkt_type = 3;	// In proximity float 0xA0  or touch 0xE0
+	if(data[1] == 0xC2) {
+		pkt_type = 2;	// tool status update packet
+		bosto_2g->last_ts = jiffies;	// Time Stamp packet as it is in prox
+	}
+	if(((data[1] & 0xF0) == 0xA0) | ((data[1] & 0xF0) == 0xE0)) {
+		pkt_type = 3;	// In proximity float 0xA0  or touch 0xE0
+		bosto_2g->last_ts = jiffies;	// Time Stamp packet as it is in prox
+	}
 
 
 	dev_dbg(&dev->dev, "Bosto_packet:  [B0:-:B8] %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x Time:%li\n",
@@ -168,7 +221,7 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 			/* tool prox out */
 			case 1:
 				bosto_2g->stylus_btn_state = false;
-				if( bosto_2g->stylus_prox) {		// Three 0x80 indicates stylus out of proximity
+				if( (bosto_2g->stylus_prox) && ((current_ts - bosto_2g->last_ts) > TOOL_OUT_DETECT)) {	
 					// Release all the buttons on tool out
 					input_report_key(input_dev, BTN_STYLUS, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_STYLUS released");
 					input_report_key(input_dev, BTN_TOUCH, 0); dev_dbg(&dev->dev, "Bosto BUTTON: BTN_TOUCH released");
@@ -312,6 +365,28 @@ static void bosto_2g_parse_packet(struct bosto_2g *bosto_2g )
 	bosto_2g->tool_update = false;
 }
 
+
+static void bosto_2g_ctrl(struct urb *urb){
+	struct usb_ctrl_bosto_2g *usb_ctrl_bosto_2g = urb->context;
+	/*
+	printk (KERN_INFO "Bosto USB ctrl command completed %i\n", *(char*)usb_ctrl_bosto_2g->ctrl_data);
+	printk (KERN_INFO "Bosto USB ctrl command completed %i\n", *(char*)(usb_ctrl_bosto_2g->ctrl_data + 1));
+	printk (KERN_INFO "Bosto USB ctrl command completed %i\n", *(char*)(usb_ctrl_bosto_2g->ctrl_data + 2));
+	printk (KERN_INFO "Bosto USB ctrl command completed %i\n", *(char*)(usb_ctrl_bosto_2g->ctrl_data + 3));
+	printk (KERN_INFO "Bosto USB ctrl command completed %i\n", *(char*)(usb_ctrl_bosto_2g->ctrl_data + 4));
+	printk (KERN_INFO "Bosto USB ctrl command completed %i\n", *(char*)(usb_ctrl_bosto_2g->ctrl_data + 5));
+	printk (KERN_INFO "Bosto USB ctrl command completed %i\n", *(char*)(usb_ctrl_bosto_2g->ctrl_data + 6));
+	printk (KERN_INFO "Bosto USB ctrl command completed %i\n", *(char*)(usb_ctrl_bosto_2g->ctrl_data + 7));
+	*/
+	//print_hex_dump_bytes("Bosto USB ctrl command completed: ", DUMP_PREFIX_NONE, usb_ctrl_bosto_2g->ctrl_data, 12);
+	print_hex_dump(KERN_ALERT, "Bosto USB ctrl command completed: ", DUMP_PREFIX_ADDRESS,
+                16, 1, usb_ctrl_bosto_2g->ctrl_data, 18, 1);
+				
+	/* free up our allocated buffer */
+				
+}
+
+ 
 static void bosto_2g_irq(struct urb *urb)
 {
 	struct bosto_2g *bosto_2g = urb->context;
@@ -343,31 +418,35 @@ static void bosto_2g_irq(struct urb *urb)
 		break;
 	}
 
+	if(atomic_read(&ctrl_urb->use_count) == 0){
+		//usb_get_status(dev,
+		//				int type, int target, void *data);
+		retval = usb_submit_urb(ctrl_urb, GFP_ATOMIC);
+		if (retval) {
+			dev_err(&dev->dev, "%s - usb_submit_urb CTRL failed with result %d", __func__, retval);
+			//usb_kill_urb(ctrl_urb);
+		}
+	 }
 	retval = usb_submit_urb(urb, GFP_ATOMIC);
 	if (retval)
-		dev_err(&dev->dev, "%s - usb_submit_urb failed with result %d",
+		dev_err(&dev->dev, "%s - usb_submit_urb INT failed with result %d",
 			__func__, retval);
 }
+
 
 static int bosto_2g_open(struct input_dev *dev)
 {
 	struct bosto_2g *bosto_2g = input_get_drvdata(dev);
-
 	bosto_2g->irq->dev = bosto_2g->usbdev;
 	if (usb_submit_urb(bosto_2g->irq, GFP_KERNEL))
 		return -EIO;
 
-	//dev_err(&dev->dev, "%s - Opening Bosto urb.",
-		//__func__);
 	return 0;
 }
 
 static void bosto_2g_close(struct input_dev *dev)
 {
 	struct bosto_2g *bosto_2g = input_get_drvdata(dev);
-
-	dev_err(&dev->dev, "%s - Closing Bosto urb.",
-		__func__);
 	usb_kill_urb(bosto_2g->irq);
 }
 
@@ -392,18 +471,21 @@ static bool get_features(struct usb_device *dev, struct bosto_2g *bosto_2g)
 
 static int bosto_2g_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
+	
 	struct usb_device *dev = interface_to_usbdev(intf);
 	struct usb_endpoint_descriptor *endpoint;
 	struct bosto_2g *bosto_2g;
+	struct usb_ctrl_bosto_2g *usb_ctrl_bosto_2g; 
 	struct input_dev *input_dev;
 	int error;
 	int i;
 	
 
 	printk (KERN_INFO "Bosto_Probe checking Tablet.\n");
+	usb_ctrl_bosto_2g = kzalloc(sizeof(struct usb_ctrl_bosto_2g), GFP_KERNEL);
 	bosto_2g = kzalloc(sizeof(struct bosto_2g), GFP_KERNEL);
 	input_dev = input_allocate_device();
-	if (!bosto_2g || !input_dev) {
+	if (!bosto_2g || !input_dev || !usb_ctrl_bosto_2g) {
 		error = -ENOMEM;
 		goto fail1;
 	}
@@ -428,9 +510,15 @@ static int bosto_2g_probe(struct usb_interface *intf, const struct usb_device_id
 
 	bosto_2g->usbdev = dev;
 	bosto_2g->dev = input_dev;
+	bosto_2g->intf = intf;
+	
 
 	usb_make_path(dev, bosto_2g->phys, sizeof(bosto_2g->phys));
-	strlcat(bosto_2g->phys, "/input0", sizeof(bosto_2g->phys));
+	strlcat(bosto_2g->phys, "/TABLET", sizeof(bosto_2g->phys));
+	//strlcat(bosto_2g->phys, "/input0", sizeof(bosto_2g->phys));
+	printk (KERN_INFO "Bosto phys string: %s\n", bosto_2g->phys);
+	
+	
 
 	strlcpy(bosto_2g->name, bosto_2g->features->name, sizeof(bosto_2g->name));
 	input_dev->name = bosto_2g->name;
@@ -465,26 +553,64 @@ static int bosto_2g_probe(struct usb_interface *intf, const struct usb_device_id
 			     0, bosto_2g->features->max_pressure, 0, 0);		 
 
 	endpoint = &intf->cur_altsetting->endpoint[0].desc;
+	bosto_2g->endpoint = endpoint;
+
 	usb_fill_int_urb(bosto_2g->irq, dev,
 			usb_rcvintpipe(dev, endpoint->bEndpointAddress),
 			bosto_2g->data, bosto_2g->features->pkg_len,
 			bosto_2g_irq, bosto_2g, endpoint->bInterval);
 	bosto_2g->irq->transfer_dma = bosto_2g->data_dma;
 	bosto_2g->irq->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+	
+
+	
+	usb_ctrl_bosto_2g->ctrl_data = usb_alloc_coherent(dev, ctrl_setup_packet.wLength,
+						GFP_KERNEL, &usb_ctrl_bosto_2g->ctrl_data_dma);
+	if (!usb_ctrl_bosto_2g->ctrl_data) {
+		error = -ENOMEM;
+		goto fail1;
+	}
+	
+	usb_ctrl_bosto_2g->ctrl = usb_alloc_urb(0, GFP_KERNEL);
+	if (!usb_ctrl_bosto_2g->ctrl) {
+		error = -ENOMEM;
+		goto fail2;
+	}
+	ctrl_urb = usb_ctrl_bosto_2g->ctrl;
+	usb_fill_control_urb(usb_ctrl_bosto_2g->ctrl, dev, usb_sndctrlpipe(dev, ctrl_setup_packet.wIndex),
+			(void*)&ctrl_setup_packet, usb_ctrl_bosto_2g->ctrl_data, ctrl_setup_packet.wLength, bosto_2g_ctrl, usb_ctrl_bosto_2g);	
+	
+	ctrl_urb = usb_ctrl_bosto_2g->ctrl;	
+	
+	/*
+	ctrl_result = usb_control_msg (dev,
+ 	usb_sndctrlpipe(dev, (bosto_2g->endpoint->bEndpointAddress &0xF)),
+ 	usb_ctrl_bosto_2g->bRequest,
+ 	usb_ctrl_bosto_2g->bmRequestType,
+ 	usb_ctrl_bosto_2g->wValue,
+ 	usb_ctrl_bosto_2g->wIndex,
+ 	usb_ctrl_bosto_2g->ctrl_data,
+ 	usb_ctrl_bosto_2g->wLength,
+ 	0xFF);
+	*/
+	//printk (KERN_INFO "Bosto Open. Control Msg: %i.\n", ctrl_result);
 
 	error = input_register_device(bosto_2g->dev);
 	if (error)
 		goto fail3;
 
 	usb_set_intfdata(intf, bosto_2g);
-
 	return 0;
 
  fail3:	usb_free_urb(bosto_2g->irq);
+		usb_free_urb(usb_ctrl_bosto_2g->ctrl);
  fail2:	usb_free_coherent(dev, bosto_2g->features->pkg_len,
 			bosto_2g->data, bosto_2g->data_dma);
+		usb_free_coherent(dev, ctrl_setup_packet.wLength,
+			usb_ctrl_bosto_2g->ctrl_data, usb_ctrl_bosto_2g->ctrl_data_dma);
  fail1:	input_free_device(input_dev);
 	kfree(bosto_2g);
+	kfree(usb_ctrl_bosto_2g);
 	printk (KERN_INFO "Requesting kernel to free Bosto urb.\n");
 	return error;
 
@@ -496,6 +622,7 @@ static void bosto_2g_disconnect(struct usb_interface *intf)
 
 	printk (KERN_INFO "bosto_2g: USB interface disconnected.\n");
 	input_unregister_device(bosto_2g->dev);
+	//usb_free_urb(bosto_2g->ctrl);
 	usb_free_urb(bosto_2g->irq);
 	usb_free_coherent(interface_to_usbdev(intf),
 			bosto_2g->features->pkg_len, bosto_2g->data,
