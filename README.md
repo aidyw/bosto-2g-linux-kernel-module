@@ -25,7 +25,7 @@ Current Status
 * Removed fuzz factor from driver when reporting absolute position x & y. This is not a joystick and we should have negligable jitter on the reported position.
 * ~~Added delay before pressure reports when tool is presented for the first time.~~
 * Added conditional for origin 0,0, and don't report. This prevents lines drawn to the absolute origin when pen first in or when stylus button presses during contact. We loose one pixel. I'm not loosing any sleep.
-
+* Added 'Double Click' option for stylus button. Emulates pressing BTN_STYLUS2, this equates to a right mouse click in most cases.
 **Tested programs**
 
 Tracking and pressure sensitivity working on:
